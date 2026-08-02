@@ -70,35 +70,73 @@ const NEON = {
   red: "#ef4444",
 };
 
-// ── Tile layer definitions (all free, no API key) ─────────────────────────
+// Light "baby yellow + gray" theme — Google Maps aesthetic
+// Uses the SAME key names as NEON so T.neonBlue etc. work in both themes.
+// In light theme, neonBlue = baby yellow accent (the primary action color).
+const LIGHT = {
+  bg0: "#f9fafb",
+  bg1: "#ffffff",
+  bg2: "#f3f4f6",
+  border: "#e5e7eb",
+  borderNeon: "#fcd34d",
+  textPrimary: "#111827",
+  textSecondary: "#6b7280",
+  textMuted: "#9ca3af",
+  neonBlue: "#f59e0b",
+  neonBlueGlow: "rgba(245, 158, 11, 0.35)",
+  neonGreen: "#10b981",
+  neonAmber: "#f59e0b",
+  neonPink: "#ec4899",
+  neonCyan: "#06b6d4",
+  red: "#ef4444",
+  panelBg: "rgba(255, 255, 255, 0.96)",
+};
+
+// ── Tile layer definitions ────────────────────────────────────────────────
+// Google Maps tiles give the EXACT Google Maps look — streets, houses,
+// business labels, parks, water — everything you see on maps.google.com
 const TILE_LAYERS = {
+  google: {
+    name: "Google Maps",
+    url: "https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=en",
+    attribution: "&copy; Google Maps",
+    subdomains: "0123",
+    icon: Globe,
+  },
+  googleSat: {
+    name: "Google Satellite",
+    url: "https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+    attribution: "&copy; Google Maps",
+    subdomains: "0123",
+    icon: Satellite,
+  },
+  googleHybrid: {
+    name: "Google Hybrid",
+    url: "https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+    attribution: "&copy; Google Maps",
+    subdomains: "0123",
+    icon: Satellite,
+  },
+  googleTerrain: {
+    name: "Google Terrain",
+    url: "https://mt{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}",
+    attribution: "&copy; Google Maps",
+    subdomains: "0123",
+    icon: Mountain,
+  },
   dark: {
     name: "Dark",
     url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-    attribution: '&copy; OSM &copy; CARTO',
+    attribution: "&copy; OSM &copy; CARTO",
     subdomains: "abcd",
     icon: Globe,
-  },
-  satellite: {
-    name: "Satellite",
-    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    attribution: '&copy; Esri',
-    subdomains: "",
-    icon: Satellite,
   },
   streets: {
     name: "Streets",
     url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-    attribution: '&copy; OSM &copy; CARTO',
+    attribution: "&copy; OSM &copy; CARTO",
     subdomains: "abcd",
     icon: Route,
-  },
-  terrain: {
-    name: "Terrain",
-    url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-    attribution: '&copy; OpenTopoMap',
-    subdomains: "abc",
-    icon: Mountain,
   },
 } as const;
 
@@ -564,6 +602,10 @@ export interface NeonMapProps {
   showFullscreen?: boolean;
   showMeasure?: boolean;
   showContextMenu?: boolean;
+  /** "neon" = dark Midnight Tech, "light" = baby yellow + gray Google Maps */
+  theme?: "neon" | "light";
+  /** Default tile layer when the component mounts */
+  defaultLayer?: LayerKey;
 }
 
 export function NeonMap({
@@ -585,8 +627,15 @@ export function NeonMap({
   showFullscreen = true,
   showMeasure = true,
   showContextMenu = true,
+  theme = "neon",
+  defaultLayer,
 }: NeonMapProps) {
-  const [layer, setLayer] = useState<LayerKey>("dark");
+  // Resolve theme + default layer together
+  const resolvedDefaultLayer: LayerKey = defaultLayer ?? (theme === "light" ? "google" : "dark");
+  const [layer, setLayer] = useState<LayerKey>(resolvedDefaultLayer);
+  // T is the active theme tokens (NEON for dark, LIGHT for baby-yellow/gray)
+  const T = theme === "light" ? LIGHT : NEON;
+  const panelBg = theme === "light" ? LIGHT.panelBg : "rgba(13, 17, 23, 0.92)";
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [measureMode, setMeasureMode] = useState(false);
   const [measurePoints, setMeasurePoints] = useState<MeasurePoint[]>([]);
@@ -667,7 +716,7 @@ export function NeonMap({
     <div
       ref={containerRef}
       className="relative w-full"
-      style={{ height: isFullscreen ? "100vh" : height, backgroundColor: NEON.bg0 }}
+      style={{ height: isFullscreen ? "100vh" : height, backgroundColor: T.bg0 }}
     >
       <style>{`
         @keyframes neon-pulse {
@@ -677,12 +726,12 @@ export function NeonMap({
         }
         .neon-marker { background: transparent !important; border: none !important; }
         .leaflet-container {
-          background: ${NEON.bg0} !important;
+          background: ${T.bg0} !important;
           font-family: Inter, sans-serif;
         }
         .leaflet-tile { filter: brightness(0.92) contrast(1.08); }
         .leaflet-control-zoom {
-          border: 1px solid ${NEON.borderNeon} !important;
+          border: 1px solid ${T.borderNeon} !important;
           background: rgba(13, 17, 23, 0.92) !important;
           backdrop-filter: blur(8px);
           box-shadow: 0 0 12px rgba(59,130,246,0.2) !important;
@@ -691,27 +740,27 @@ export function NeonMap({
         }
         .leaflet-control-zoom a {
           background: transparent !important;
-          color: ${NEON.neonBlue} !important;
-          border-bottom: 1px solid ${NEON.border} !important;
+          color: ${T.neonBlue} !important;
+          border-bottom: 1px solid ${T.border} !important;
           transition: all 0.2s ease;
         }
         .leaflet-control-zoom a:hover {
           background: rgba(59,130,246,0.15) !important;
-          color: ${NEON.textPrimary} !important;
+          color: ${T.textPrimary} !important;
         }
         .leaflet-control-attribution {
           background: rgba(13, 17, 23, 0.85) !important;
-          color: ${NEON.textMuted} !important;
+          color: ${T.textMuted} !important;
           backdrop-filter: blur(8px);
           border-top-left-radius: 4px;
           font-size: 9px !important;
           padding: 2px 6px !important;
         }
-        .leaflet-control-attribution a { color: ${NEON.neonBlue} !important; }
+        .leaflet-control-attribution a { color: ${T.neonBlue} !important; }
         .leaflet-control-scale-line {
           background: rgba(13, 17, 23, 0.85) !important;
-          color: ${NEON.textSecondary} !important;
-          border: 1px solid ${NEON.borderNeon} !important;
+          color: ${T.textSecondary} !important;
+          border: 1px solid ${T.borderNeon} !important;
           border-top: none !important;
           backdrop-filter: blur(8px);
           font-family: monospace !important;
@@ -720,18 +769,18 @@ export function NeonMap({
         }
         .leaflet-popup-content-wrapper {
           background: rgba(13, 17, 23, 0.97) !important;
-          color: ${NEON.textPrimary} !important;
-          border: 1px solid ${NEON.borderNeon} !important;
+          color: ${T.textPrimary} !important;
+          border: 1px solid ${T.borderNeon} !important;
           border-radius: 8px !important;
           backdrop-filter: blur(12px);
           box-shadow: 0 0 20px rgba(59,130,246,0.25), 0 8px 32px rgba(0,0,0,0.5) !important;
         }
         .leaflet-popup-tip {
           background: rgba(13, 17, 23, 0.97) !important;
-          border: 1px solid ${NEON.borderNeon} !important;
+          border: 1px solid ${T.borderNeon} !important;
         }
         .leaflet-popup-content { margin: 8px 12px !important; font-size: 12px !important; }
-        .leaflet-popup-close-button { color: ${NEON.textMuted} !important; }
+        .leaflet-popup-close-button { color: ${T.textMuted} !important; }
       `}</style>
 
       <MapContainer
@@ -777,11 +826,11 @@ export function NeonMap({
           <>
             <Polyline
               positions={routePoints.map((p) => [p.lat, p.lon])}
-              pathOptions={{ color: NEON.neonAmber, weight: 5, opacity: 0.3 }}
+              pathOptions={{ color: T.neonAmber, weight: 5, opacity: 0.3 }}
             />
             <Polyline
               positions={routePoints.map((p) => [p.lat, p.lon])}
-              pathOptions={{ color: NEON.neonAmber, weight: 2.5, opacity: 0.9 }}
+              pathOptions={{ color: T.neonAmber, weight: 2.5, opacity: 0.9 }}
             />
           </>
         )}
@@ -790,7 +839,7 @@ export function NeonMap({
         {measurePoints.length > 0 && (
           <Polyline
             positions={measurePoints.map((p) => [p.lat, p.lon])}
-            pathOptions={{ color: NEON.neonAmber, weight: 2, dashArray: "6 4", opacity: 0.8 }}
+            pathOptions={{ color: T.neonAmber, weight: 2, dashArray: "6 4", opacity: 0.8 }}
           />
         )}
 
@@ -808,9 +857,9 @@ export function NeonMap({
                   {m.label}
                 </div>
                 {m.sublabel && (
-                  <div style={{ fontSize: 10, color: NEON.textSecondary, marginBottom: 4 }}>{m.sublabel}</div>
+                  <div style={{ fontSize: 10, color: T.textSecondary, marginBottom: 4 }}>{m.sublabel}</div>
                 )}
-                <div style={{ fontSize: 9, fontFamily: "monospace", color: NEON.textMuted, marginBottom: 6 }}>
+                <div style={{ fontSize: 9, fontFamily: "monospace", color: T.textMuted, marginBottom: 6 }}>
                   {m.lat.toFixed(6)}°N, {Math.abs(m.lon).toFixed(6)}°{m.lon >= 0 ? "E" : "W"}
                 </div>
                 {m.popupActions && m.popupActions.length > 0 && (
@@ -821,8 +870,8 @@ export function NeonMap({
                         onClick={a.onClick}
                         style={{
                           background: "rgba(59,130,246,0.12)",
-                          border: `1px solid ${NEON.borderNeon}`,
-                          color: a.color || NEON.neonBlue,
+                          border: `1px solid ${T.borderNeon}`,
+                          color: a.color || T.neonBlue,
                           borderRadius: 4,
                           padding: "2px 8px",
                           fontSize: 10,
@@ -866,8 +915,8 @@ export function NeonMap({
             className="flex items-center justify-center h-8 w-8 rounded-md cursor-pointer transition-all"
             style={{
               backgroundColor: "rgba(13, 17, 23, 0.92)",
-              border: `1px solid ${NEON.borderNeon}`,
-              color: NEON.neonBlue,
+              border: `1px solid ${T.borderNeon}`,
+              color: T.neonBlue,
               backdropFilter: "blur(8px)",
               boxShadow: "0 0 12px rgba(59,130,246,0.2)",
             }}
@@ -885,10 +934,10 @@ export function NeonMap({
             className="flex items-center justify-center h-8 w-8 rounded-md cursor-pointer transition-all"
             style={{
               backgroundColor: measureMode ? "rgba(245,158,11,0.15)" : "rgba(13, 17, 23, 0.92)",
-              border: `1px solid ${measureMode ? NEON.neonAmber + "80" : NEON.borderNeon}`,
-              color: measureMode ? NEON.neonAmber : NEON.neonBlue,
+              border: `1px solid ${measureMode ? T.neonAmber + "80" : T.borderNeon}`,
+              color: measureMode ? T.neonAmber : T.neonBlue,
               backdropFilter: "blur(8px)",
-              boxShadow: measureMode ? `0 0 12px ${NEON.neonAmber}50` : "0 0 12px rgba(59,130,246,0.2)",
+              boxShadow: measureMode ? `0 0 12px ${T.neonAmber}50` : "0 0 12px rgba(59,130,246,0.2)",
             }}
           >
             <Ruler className="h-3.5 w-3.5" />
@@ -904,8 +953,8 @@ export function NeonMap({
           className="flex items-center justify-center h-8 w-8 rounded-md cursor-pointer transition-all"
           style={{
             backgroundColor: "rgba(13, 17, 23, 0.92)",
-            border: `1px solid ${NEON.borderNeon}`,
-            color: NEON.neonBlue,
+            border: `1px solid ${T.borderNeon}`,
+            color: T.neonBlue,
             backdropFilter: "blur(8px)",
           }}
         >
@@ -919,8 +968,8 @@ export function NeonMap({
           className="absolute top-3 left-[300px] z-[500] px-2.5 py-1 rounded-md font-mono text-[10px] pointer-events-none"
           style={{
             backgroundColor: "rgba(13, 17, 23, 0.85)",
-            border: `1px solid ${NEON.border}`,
-            color: NEON.textSecondary,
+            border: `1px solid ${T.border}`,
+            color: T.textSecondary,
             backdropFilter: "blur(8px)",
           }}
         >
@@ -970,7 +1019,7 @@ export function NeonMap({
           style={{
             backgroundColor: "rgba(245, 158, 11, 0.12)",
             border: "1px solid rgba(245, 158, 11, 0.5)",
-            color: NEON.neonAmber,
+            color: T.neonAmber,
             boxShadow: "0 0 16px rgba(245, 158, 11, 0.3)",
             backdropFilter: "blur(8px)",
           }}
@@ -986,7 +1035,7 @@ export function NeonMap({
           style={{
             backgroundColor: "rgba(245, 158, 11, 0.12)",
             border: "1px solid rgba(245, 158, 11, 0.5)",
-            color: NEON.neonAmber,
+            color: T.neonAmber,
             backdropFilter: "blur(8px)",
           }}
         >

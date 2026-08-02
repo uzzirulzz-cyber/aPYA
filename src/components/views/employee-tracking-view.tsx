@@ -135,37 +135,38 @@ interface SummaryData {
 }
 
 // ── THEME TOKENS ──────────────────────────────────────────────────────────
+// Baby yellow + gray theme — Google Maps aesthetic
 const T = {
-  // Base backgrounds
-  bg0: "#0d1117",          // deepest
-  bg1: "#161b22",          // panel
-  bg2: "#1c2230",          // raised
+  // Base backgrounds (light gray + white)
+  bg0: "#f9fafb",          // lightest gray (page bg)
+  bg1: "#ffffff",          // white panels
+  bg2: "#f3f4f6",          // light gray raised
   // Borders
-  border: "rgba(48, 54, 61, 0.8)",
-  borderNeon: "rgba(59, 130, 246, 0.4)",
-  // Neon accents
-  neonBlue: "#3b82f6",
-  neonBlueGlow: "rgba(59, 130, 246, 0.5)",
+  border: "#e5e7eb",       // soft gray border
+  borderNeon: "#fcd34d",   // baby yellow accent border
+  // Accents (baby yellow is the primary action color)
+  neonBlue: "#f59e0b",     // baby yellow/amber — primary action
+  neonBlueGlow: "rgba(245, 158, 11, 0.35)",
   neonPink: "#ec4899",
-  neonAmber: "#f59e0b",
+  neonAmber: "#f59e0b",    // same as neonBlue (yellow IS the accent)
   neonGreen: "#10b981",
   neonCyan: "#06b6d4",
   // Text
-  textPrimary: "#f0f6fc",
-  textSecondary: "#8b949e",
-  textMuted: "#6e7681",
+  textPrimary: "#111827",  // near-black
+  textSecondary: "#6b7280", // medium gray
+  textMuted: "#9ca3af",    // light gray
   // Map
-  mapBg: "#0d1117",
-  mapLandmass: "rgba(48, 54, 61, 0.5)",
-  mapRoad: "rgba(72, 81, 92, 0.4)",
-  mapGrid: "rgba(59, 130, 246, 0.06)",
+  mapBg: "#f9fafb",
+  mapLandmass: "rgba(229, 231, 235, 0.5)",
+  mapRoad: "rgba(156, 163, 175, 0.4)",
+  mapGrid: "rgba(245, 158, 11, 0.04)",
 };
 
 const GEOFENCE_COLORS = [
+  { hex: "#f59e0b", name: "Baby Yellow" },
   { hex: "#3b82f6", name: "Blue" },
-  { hex: "#ec4899", name: "Pink" },
-  { hex: "#f59e0b", name: "Amber" },
   { hex: "#10b981", name: "Green" },
+  { hex: "#ec4899", name: "Pink" },
   { hex: "#a855f7", name: "Purple" },
   { hex: "#06b6d4", name: "Cyan" },
 ];
@@ -406,7 +407,7 @@ export function EmployeeTrackingView() {
       const label = g.name.slice(0, 16);
       ctx.font = `bold ${10 / zoom}px sans-serif`;
       const labelW = ctx.measureText(label).width + 10;
-      ctx.fillStyle = "rgba(13, 17, 23, 0.9)";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
       ctx.fillRect(cx - labelW / 2, cy - radiusPx - 18 / zoom, labelW, 14 / zoom);
       ctx.strokeStyle = hexToRgba(g.color, 0.5);
       ctx.lineWidth = 0.5 / zoom;
@@ -506,7 +507,7 @@ export function EmployeeTrackingView() {
       const label = (m.name || m.email).slice(0, 14);
       ctx.font = isSelected ? `bold ${11 / zoom}px sans-serif` : `${10 / zoom}px sans-serif`;
       const labelW = ctx.measureText(label).width + 12;
-      ctx.fillStyle = "rgba(13, 17, 23, 0.92)";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
       ctx.fillRect(x - labelW / 2, y - 28 / zoom, labelW, 14 / zoom);
       ctx.strokeStyle = hexToRgba(color, 0.6);
       ctx.lineWidth = 0.5 / zoom;
@@ -761,7 +762,7 @@ export function EmployeeTrackingView() {
       <div
         className="flex items-center justify-between px-4 py-2 z-20"
         style={{
-          backgroundColor: "rgba(13, 17, 23, 0.92)",
+          backgroundColor: "rgba(255, 255, 255, 0.95)",
           borderBottom: `1px solid ${T.borderNeon}`,
           backdropFilter: "blur(16px)",
         }}
@@ -815,7 +816,7 @@ export function EmployeeTrackingView() {
         <aside
           className="w-72 shrink-0 flex flex-col"
           style={{
-            backgroundColor: "rgba(13, 17, 23, 0.85)",
+            backgroundColor: "rgba(255, 255, 255, 0.92)",
             borderRight: `1px solid ${T.border}`,
             backdropFilter: "blur(12px)",
           }}
@@ -1056,7 +1057,9 @@ export function EmployeeTrackingView() {
               toast.info(`Focused: ${r.shortName}`);
             }}
             initialCenter={[34.1718, 73.2389]}
-            initialZoom={13}
+            initialZoom={15}
+            theme="light"
+            defaultLayer="google"
           />
 
           {/* Top-left status overlay */}
@@ -1064,7 +1067,7 @@ export function EmployeeTrackingView() {
             <div
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-md"
               style={{
-                backgroundColor: "rgba(13, 17, 23, 0.85)",
+                backgroundColor: "rgba(255, 255, 255, 0.92)",
                 border: `1px solid ${T.borderNeon}`,
                 backdropFilter: "blur(8px)",
               }}
@@ -1076,7 +1079,7 @@ export function EmployeeTrackingView() {
             </div>
             <div
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-md"
-              style={{ backgroundColor: "rgba(13, 17, 23, 0.85)", border: `1px solid ${T.border}`, backdropFilter: "blur(8px)" }}
+              style={{ backgroundColor: "rgba(255, 255, 255, 0.92)", border: `1px solid ${T.border}`, backdropFilter: "blur(8px)" }}
             >
               <Clock className="h-2.5 w-2.5" style={{ color: T.textMuted }} />
               <span className="text-[10px] font-mono" style={{ color: T.textSecondary }}>
@@ -1113,7 +1116,7 @@ export function EmployeeTrackingView() {
             className="absolute bottom-3 right-3 text-[9px] font-mono px-2 py-1 rounded z-[500]"
             style={{
               color: T.textMuted,
-              backgroundColor: "rgba(13, 17, 23, 0.85)",
+              backgroundColor: "rgba(255, 255, 255, 0.92)",
               border: `1px solid ${T.border}`,
               backdropFilter: "blur(8px)",
             }}
@@ -1122,7 +1125,7 @@ export function EmployeeTrackingView() {
           </div>
 
           {loading && (
-            <div className="absolute inset-0 flex items-center justify-center z-[600]" style={{ backgroundColor: "rgba(13, 17, 23, 0.8)" }}>
+            <div className="absolute inset-0 flex items-center justify-center z-[600]" style={{ backgroundColor: "rgba(255, 255, 255, 0.9)" }}>
               <Activity className="h-6 w-6 animate-spin" style={{ color: T.neonBlue }} />
             </div>
           )}
@@ -1132,7 +1135,7 @@ export function EmployeeTrackingView() {
         <aside
           className="w-80 shrink-0 flex flex-col"
           style={{
-            backgroundColor: "rgba(13, 17, 23, 0.92)",
+            backgroundColor: "rgba(255, 255, 255, 0.95)",
             borderLeft: `1px solid ${T.border}`,
             backdropFilter: "blur(12px)",
           }}
@@ -1471,7 +1474,7 @@ function NeonIconButton({ color, onClick, title, children }: { color: string; on
       title={title}
       className="flex items-center justify-center h-7 w-7 rounded-md cursor-pointer transition-all"
       style={{
-        backgroundColor: "rgba(13, 17, 23, 0.85)",
+        backgroundColor: "rgba(255, 255, 255, 0.92)",
         border: `1px solid ${hexToRgba(color, 0.4)}`,
         color,
         backdropFilter: "blur(8px)",
@@ -1481,7 +1484,7 @@ function NeonIconButton({ color, onClick, title, children }: { color: string; on
         e.currentTarget.style.boxShadow = `0 0 12px ${hexToRgba(color, 0.5)}`;
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = "rgba(13, 17, 23, 0.85)";
+        e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.92)";
         e.currentTarget.style.boxShadow = "none";
       }}
     >
@@ -1495,7 +1498,7 @@ function LegendItem({ color, label, filled = true }: { color: string; label: str
     <div
       className="flex items-center gap-1.5 px-2 py-1 rounded"
       style={{
-        backgroundColor: "rgba(13, 17, 23, 0.85)",
+        backgroundColor: "rgba(255, 255, 255, 0.92)",
         border: `1px solid ${T.border}`,
         backdropFilter: "blur(8px)",
       }}
