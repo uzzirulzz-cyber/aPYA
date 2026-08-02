@@ -18,6 +18,7 @@ import {
   FlaskConical,
   Bell,
   Store,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +57,12 @@ const NAV_ITEMS: Array<{
     icon: <Briefcase className="w-4 h-4" />,
     view: { name: "cases" },
     match: (v) => v.name === "cases" || v.name === "case",
+  },
+  {
+    label: "Ops Monitor",
+    icon: <Globe className="w-4 h-4" />,
+    view: { name: "monitor" },
+    match: (v) => v.name === "monitor",
   },
   {
     label: "Audit Log",

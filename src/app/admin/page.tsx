@@ -8,6 +8,7 @@ import { CaseDetailView } from "@/components/views/case-detail-view";
 import { ProfileView } from "@/components/views/profile-view";
 import { AdminView } from "@/components/views/admin-view";
 import { AuditView } from "@/components/views/audit-view";
+import { GeoMonitorView } from "@/components/views/geo-monitor-view";
 import { useView } from "@/lib/view-router";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -42,6 +43,7 @@ export default function AdminPage() {
       {view.name === "case" && <CaseDetailView caseId={view.caseId} tab={view.tab ?? "overview"} />}
       {view.name === "profile" && <ProfileView />}
       {view.name === "admin" && <AdminView />}
+      {view.name === "monitor" && <GeoMonitorView />}
       {view.name === "audit" && <AuditView />}
       {view.name === "storefront" && <DashboardView />}
     </AppShell>

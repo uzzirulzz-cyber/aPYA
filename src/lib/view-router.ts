@@ -9,6 +9,7 @@ export type View =
   | { name: "case"; caseId: string; tab?: CaseTab }
   | { name: "profile" }
   | { name: "admin" }
+  | { name: "monitor" }
   | { name: "audit" };
 
 export type CaseTab =
@@ -40,6 +41,7 @@ interface ViewState {
 /*  #cases                 → CasesView                                        */
 /*  #audit                 → AuditView                                        */
 /*  #profile               → ProfileView                                      */
+/*  #monitor               → GeoMonitorView (full ops center)                 */
 /*  #case/<id>             → CaseDetailView (overview tab)                    */
 /*  #case/<id>/<tab>       → CaseDetailView (specific tab)                    */
 /* -------------------------------------------------------------------------- */
@@ -67,7 +69,7 @@ function hashToView(hash: string): View {
   }
 
   // simple named views
-  const valid = ["storefront", "dashboard", "cases", "profile", "admin", "audit"];
+  const valid = ["storefront", "dashboard", "cases", "profile", "admin", "monitor", "audit"];
   if (valid.includes(clean)) {
     return { name: clean as View["name"] } as View;
   }
