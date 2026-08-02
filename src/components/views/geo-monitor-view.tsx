@@ -258,10 +258,10 @@ export function GeoMonitorView() {
 
     // Background gradient
     const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
-    bgGrad.addColorStop(0, "#0a0e1a");
-    bgGrad.addColorStop(0.4, "#0f1729");
-    bgGrad.addColorStop(0.7, "#1a2744");
-    bgGrad.addColorStop(1, "#0a0e1a");
+    bgGrad.addColorStop(0, "#0d1117");
+    bgGrad.addColorStop(0.4, "#11161f");
+    bgGrad.addColorStop(0.7, "#161b22");
+    bgGrad.addColorStop(1, "#0d1117");
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, w, h);
 
@@ -355,7 +355,7 @@ export function GeoMonitorView() {
       // HQ hub
       ctx.fillStyle = "rgba(20, 184, 166, 0.2)";
       ctx.beginPath(); ctx.arc(cx, cy, 14, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = "#14b8a6";
+      ctx.fillStyle = "#3b82f6";
       ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "rgba(20, 184, 166, 0.6)";
       ctx.font = "bold 9px sans-serif";
@@ -534,12 +534,12 @@ export function GeoMonitorView() {
   const secondsSinceFetch = lastFetchRef.current ? Math.floor((Date.now() - lastFetchRef.current) / 1000) : 0;
 
   return (
-    <div className="h-[calc(100vh-3.5rem-2.5rem)] flex flex-col bg-[#0a0e1a] relative overflow-hidden">
+    <div className="h-[calc(100vh-3.5rem-2.5rem)] flex flex-col bg-[#0d1117] relative overflow-hidden">
       {/* Top HUD bar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-[#1e3a5f]/50 bg-[#0a0e1a]/90 backdrop-blur z-20">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-[rgba(59,130,246,0.25)]/50 bg-[#0d1117]/90 backdrop-blur z-20">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <Globe className="h-5 w-5 text-[#14b8a6]" />
+            <Globe className="h-5 w-5 text-[#3b82f6]" />
             <div>
               <h1 className="text-sm font-bold text-white tracking-tight">Global Operations Monitor</h1>
               <p className="text-[10px] text-[#64748b]">Real-time geo-intelligence · all units on constant live feed</p>
@@ -577,8 +577,8 @@ export function GeoMonitorView() {
       {/* Main split */}
       <div className="flex-1 flex min-h-0">
         {/* Left: units panel */}
-        <aside className="w-72 shrink-0 border-r border-[#1e3a5f]/50 bg-[#0a0e1a]/80 backdrop-blur flex flex-col">
-          <div className="p-3 border-b border-[#1e3a5f]/50 space-y-2">
+        <aside className="w-72 shrink-0 border-r border-[rgba(59,130,246,0.25)]/50 bg-[#0d1117]/80 backdrop-blur flex flex-col">
+          <div className="p-3 border-b border-[rgba(59,130,246,0.25)]/50 space-y-2">
             <div className="flex items-center gap-2">
               <Radio className="h-3.5 w-3.5 text-[#10b981]" />
               <span className="text-xs font-semibold text-white">Active Field Units</span>
@@ -592,7 +592,7 @@ export function GeoMonitorView() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search name, operator, case..."
-                className="h-7 pl-7 text-xs bg-[#0a0e1a] border-[#1e3a5f]/50 text-white placeholder:text-[#475569]"
+                className="h-7 pl-7 text-xs bg-[#0d1117] border-[rgba(59,130,246,0.25)]/50 text-white placeholder:text-[#475569]"
               />
             </div>
             <div className="flex items-center gap-1">
@@ -602,7 +602,7 @@ export function GeoMonitorView() {
                   onClick={() => setStatusFilter(s)}
                   className={`flex-1 h-6 text-[10px] font-medium uppercase tracking-wider rounded transition-colors cursor-pointer ${
                     statusFilter === s
-                      ? "bg-[#14b8a6]/20 text-[#14b8a6] border border-[#14b8a6]/40"
+                      ? "bg-[#3b82f6]/20 text-[#3b82f6] border border-[#3b82f6]/40"
                       : "text-[#64748b] hover:text-white border border-transparent"
                   }`}
                 >
@@ -612,7 +612,7 @@ export function GeoMonitorView() {
             </div>
           </div>
           <ScrollArea className="flex-1">
-            <div className="divide-y divide-[#1e3a5f]/30">
+            <div className="divide-y divide-[rgba(59,130,246,0.25)]/30">
               {filteredDevices.length === 0 ? (
                 <div className="p-4 text-center text-xs text-[#64748b]">
                   No units match the current filters.
@@ -628,7 +628,7 @@ export function GeoMonitorView() {
                       className={`w-full flex items-start gap-2.5 p-3 text-left transition-all cursor-pointer ${
                         isSelected
                           ? "bg-[#f59e0b]/5 border-l-2 border-l-[#f59e0b]"
-                          : "hover:bg-[#1e3a5f]/20 border-l-2 border-l-transparent"
+                          : "hover:bg-[rgba(59,130,246,0.25)]/20 border-l-2 border-l-transparent"
                       }`}
                     >
                       <div className="relative shrink-0 mt-0.5">
@@ -648,7 +648,7 @@ export function GeoMonitorView() {
                         </div>
                         <div className="text-[10px] text-[#64748b]">{device.make} {device.model}</div>
                         {pos && (
-                          <div className="text-[9px] text-[#14b8a6] flex items-center gap-1 font-mono">
+                          <div className="text-[9px] text-[#3b82f6] flex items-center gap-1 font-mono">
                             <MapPin className="h-2.5 w-2.5" />
                             {pos.lat.toFixed(4)}°N, {Math.abs(pos.lon).toFixed(4)}°{pos.lon >= 0 ? "E" : "W"}
                           </div>
@@ -693,20 +693,20 @@ export function GeoMonitorView() {
 
           {/* Top-left status overlay */}
           <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-none">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#0a0e1a]/80 backdrop-blur border border-[#1e3a5f]/50">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#0d1117]/80 backdrop-blur border border-[rgba(59,130,246,0.25)]/50">
               <div className="h-2 w-2 rounded-full bg-[#10b981] animate-pulse" />
               <span className="text-[10px] text-[#10b981] font-mono font-medium tracking-wider">LIVE FEED</span>
             </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#0a0e1a]/80 backdrop-blur border border-[#1e3a5f]/50">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#0d1117]/80 backdrop-blur border border-[rgba(59,130,246,0.25)]/50">
               <Crosshair className="h-2.5 w-2.5 text-[#64748b]" />
               <span className="text-[10px] text-[#64748b] font-mono">
                 {secondsSinceFetch}s · {devices.length} units
               </span>
             </div>
             {zoom > 1.05 && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#0a0e1a]/80 backdrop-blur border border-[#1e3a5f]/50">
-                <ZoomIn className="h-2.5 w-2.5 text-[#14b8a6]" />
-                <span className="text-[10px] text-[#14b8a6] font-mono">{zoom.toFixed(1)}x</span>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#0d1117]/80 backdrop-blur border border-[rgba(59,130,246,0.25)]/50">
+                <ZoomIn className="h-2.5 w-2.5 text-[#3b82f6]" />
+                <span className="text-[10px] text-[#3b82f6] font-mono">{zoom.toFixed(1)}x</span>
               </div>
             )}
           </div>
@@ -717,7 +717,7 @@ export function GeoMonitorView() {
               <Button
                 variant="ghost"
                 size="sm"
-                className={`h-7 px-2 cursor-pointer ${showLayersPanel ? "bg-[#14b8a6]/10 text-[#14b8a6]" : "text-[#64748b] hover:text-white"}`}
+                className={`h-7 px-2 cursor-pointer ${showLayersPanel ? "bg-[#3b82f6]/10 text-[#3b82f6]" : "text-[#64748b] hover:text-white"}`}
                 onClick={() => setShowLayersPanel(!showLayersPanel)}
               >
                 <Layers className="h-3 w-3" /> Layers
@@ -725,7 +725,7 @@ export function GeoMonitorView() {
               <Button
                 variant="ghost"
                 size="sm"
-                className={`h-7 px-2 cursor-pointer ${showFilters ? "bg-[#14b8a6]/10 text-[#14b8a6]" : "text-[#64748b] hover:text-white"}`}
+                className={`h-7 px-2 cursor-pointer ${showFilters ? "bg-[#3b82f6]/10 text-[#3b82f6]" : "text-[#64748b] hover:text-white"}`}
                 onClick={() => setShowFilters(!showFilters)}
               >
                 <Filter className="h-3 w-3" /> Filters
@@ -733,7 +733,7 @@ export function GeoMonitorView() {
             </div>
 
             {showLayersPanel && (
-              <div className="w-56 rounded-md bg-[#0a0e1a]/95 backdrop-blur border border-[#1e3a5f]/50 p-3 space-y-2">
+              <div className="w-56 rounded-md bg-[#0d1117]/95 backdrop-blur border border-[rgba(59,130,246,0.25)]/50 p-3 space-y-2">
                 <div className="text-[10px] font-mono uppercase tracking-wider text-[#64748b] mb-1">Map Layers</div>
                 {([
                   { key: "radar" as LayerKey, label: "Radar Sweep", icon: Radar },
@@ -757,7 +757,7 @@ export function GeoMonitorView() {
             )}
 
             {showFilters && (
-              <div className="w-56 rounded-md bg-[#0a0e1a]/95 backdrop-blur border border-[#1e3a5f]/50 p-3 space-y-2">
+              <div className="w-56 rounded-md bg-[#0d1117]/95 backdrop-blur border border-[rgba(59,130,246,0.25)]/50 p-3 space-y-2">
                 <div className="text-[10px] font-mono uppercase tracking-wider text-[#64748b] mb-1">Status Filter</div>
                 {(["all", "live", "stale"] as StatusFilter[]).map((s) => (
                   <button
@@ -765,7 +765,7 @@ export function GeoMonitorView() {
                     onClick={() => setStatusFilter(s)}
                     className={`w-full h-7 text-[11px] font-medium uppercase tracking-wider rounded transition-colors cursor-pointer ${
                       statusFilter === s
-                        ? "bg-[#14b8a6]/20 text-[#14b8a6] border border-[#14b8a6]/40"
+                        ? "bg-[#3b82f6]/20 text-[#3b82f6] border border-[#3b82f6]/40"
                         : "text-[#64748b] hover:text-white border border-transparent"
                     }`}
                   >
@@ -786,13 +786,13 @@ export function GeoMonitorView() {
 
             {/* Zoom controls */}
             <div className="flex flex-col gap-1 mt-1">
-              <Button variant="ghost" size="icon" className="h-7 w-7 bg-[#0a0e1a]/80 border border-[#1e3a5f]/50 cursor-pointer" onClick={zoomIn}>
+              <Button variant="ghost" size="icon" className="h-7 w-7 bg-[#0d1117]/80 border border-[rgba(59,130,246,0.25)]/50 cursor-pointer" onClick={zoomIn}>
                 <ZoomIn className="h-3.5 w-3.5" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-7 w-7 bg-[#0a0e1a]/80 border border-[#1e3a5f]/50 cursor-pointer" onClick={zoomOut}>
+              <Button variant="ghost" size="icon" className="h-7 w-7 bg-[#0d1117]/80 border border-[rgba(59,130,246,0.25)]/50 cursor-pointer" onClick={zoomOut}>
                 <ZoomOut className="h-3.5 w-3.5" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-7 w-7 bg-[#0a0e1a]/80 border border-[#1e3a5f]/50 cursor-pointer" onClick={resetView} title="Reset view">
+              <Button variant="ghost" size="icon" className="h-7 w-7 bg-[#0d1117]/80 border border-[rgba(59,130,246,0.25)]/50 cursor-pointer" onClick={resetView} title="Reset view">
                 <LocateFixed className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -800,22 +800,22 @@ export function GeoMonitorView() {
 
           {/* Bottom-left legend */}
           <div className="absolute bottom-3 left-3 flex flex-col gap-1.5 pointer-events-none">
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#0a0e1a]/80 backdrop-blur border border-[#1e3a5f]/50">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#0d1117]/80 backdrop-blur border border-[rgba(59,130,246,0.25)]/50">
               <div className="h-2 w-2 rounded-full bg-[#10b981]" />
               <span className="text-[9px] text-[#94a3b8]">Live unit</span>
             </div>
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#0a0e1a]/80 backdrop-blur border border-[#1e3a5f]/50">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#0d1117]/80 backdrop-blur border border-[rgba(59,130,246,0.25)]/50">
               <div className="h-2 w-2 rounded-full bg-[#64748b]" />
               <span className="text-[9px] text-[#94a3b8]">Stale unit</span>
             </div>
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#0a0e1a]/80 backdrop-blur border border-[#1e3a5f]/50">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#0d1117]/80 backdrop-blur border border-[rgba(59,130,246,0.25)]/50">
               <div className="h-2 w-2 rounded-full bg-[#f59e0b]" />
               <span className="text-[9px] text-[#94a3b8]">Selected / Locked</span>
             </div>
           </div>
 
           {/* Bottom-right timestamp */}
-          <div className="absolute bottom-3 right-3 text-[9px] font-mono text-[#475569] bg-[#0a0e1a]/80 px-2 py-1 rounded border border-[#1e3a5f]/50">
+          <div className="absolute bottom-3 right-3 text-[9px] font-mono text-[#475569] bg-[#0d1117]/80 px-2 py-1 rounded border border-[rgba(59,130,246,0.25)]/50">
             {new Date().toISOString().slice(0, 19).replace("T", " ")}Z
           </div>
 
@@ -832,16 +832,16 @@ export function GeoMonitorView() {
           )}
 
           {loading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[#0a0e1a]/80">
-              <RefreshCw className="h-6 w-6 animate-spin text-[#14b8a6]" />
+            <div className="absolute inset-0 flex items-center justify-center bg-[#0d1117]/80">
+              <RefreshCw className="h-6 w-6 animate-spin text-[#3b82f6]" />
             </div>
           )}
         </div>
 
         {/* Right: telemetry panel (slides in when a device is selected) */}
         {selectedDevice && (
-          <aside className="w-80 shrink-0 border-l border-[#1e3a5f]/50 bg-[#0a0e1a]/95 backdrop-blur overflow-y-auto">
-            <div className="p-3 border-b border-[#1e3a5f]/50 flex items-center justify-between sticky top-0 bg-[#0a0e1a]/95 backdrop-blur z-10">
+          <aside className="w-80 shrink-0 border-l border-[rgba(59,130,246,0.25)]/50 bg-[#0d1117]/95 backdrop-blur overflow-y-auto">
+            <div className="p-3 border-b border-[rgba(59,130,246,0.25)]/50 flex items-center justify-between sticky top-0 bg-[#0d1117]/95 backdrop-blur z-10">
               <div className="flex items-center gap-2">
                 <Activity className="h-4 w-4 text-[#f59e0b]" />
                 <span className="text-xs font-semibold text-white">Unit Telemetry</span>
@@ -858,23 +858,23 @@ export function GeoMonitorView() {
 
             <div className="p-3 space-y-3">
               {/* Device identity */}
-              <div className="rounded-md bg-[#0f1729] border border-[#1e3a5f]/50 p-3">
+              <div className="rounded-md bg-[#11161f] border border-[rgba(59,130,246,0.25)]/50 p-3">
                 <div className="text-[10px] uppercase tracking-wider text-[#64748b] mb-1">Unit Name</div>
                 <div className="text-sm font-semibold text-white">{selectedDevice.name}</div>
                 <div className="text-[11px] text-[#64748b] mt-0.5">
                   {selectedDevice.make} {selectedDevice.model} · {selectedDevice.os}
                 </div>
                 {selectedDevice.case && (
-                  <div className="mt-2 pt-2 border-t border-[#1e3a5f]/50">
+                  <div className="mt-2 pt-2 border-t border-[rgba(59,130,246,0.25)]/50">
                     <div className="text-[10px] text-[#64748b]">Assigned Case</div>
-                    <div className="text-[11px] text-[#14b8a6] font-mono">{selectedDevice.case.caseNumber}</div>
+                    <div className="text-[11px] text-[#3b82f6] font-mono">{selectedDevice.case.caseNumber}</div>
                     <div className="text-[11px] text-white truncate">{selectedDevice.case.title}</div>
                   </div>
                 )}
               </div>
 
               {/* GPS readout */}
-              <div className="rounded-md bg-[#0f1729] border border-[#1e3a5f]/50 p-3">
+              <div className="rounded-md bg-[#11161f] border border-[rgba(59,130,246,0.25)]/50 p-3">
                 <div className="text-[10px] uppercase tracking-wider text-[#64748b] mb-2 flex items-center gap-1">
                   <MapPin className="h-3 w-3 text-[#f59e0b]" /> GPS Coordinates
                 </div>
@@ -893,14 +893,14 @@ export function GeoMonitorView() {
                           <div className="text-xs font-mono text-white">{Math.abs(pos.lon).toFixed(6)}°{pos.lon >= 0 ? "E" : "W"}</div>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-[#1e3a5f]/50">
+                      <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-[rgba(59,130,246,0.25)]/50">
                         <div>
                           <div className="text-[9px] text-[#64748b]">ACCURACY</div>
                           <div className="text-xs font-mono text-white">±{selectedDevice.gpsAccuracy ?? 3}m</div>
                         </div>
                         <div>
                           <div className="text-[9px] text-[#64748b]">REGION</div>
-                          <div className="text-[11px] text-[#14b8a6] truncate">
+                          <div className="text-[11px] text-[#3b82f6] truncate">
                             {selectedDevice.gpsLocationName || "Active Tracking"}
                           </div>
                         </div>
@@ -911,7 +911,7 @@ export function GeoMonitorView() {
               </div>
 
               {/* Status grid */}
-              <div className="rounded-md bg-[#0f1729] border border-[#1e3a5f]/50 p-3">
+              <div className="rounded-md bg-[#11161f] border border-[rgba(59,130,246,0.25)]/50 p-3">
                 <div className="text-[10px] uppercase tracking-wider text-[#64748b] mb-2">System Status</div>
                 <div className="grid grid-cols-2 gap-2.5">
                   <TelemetryItem icon={Signal} label="Status" value={selectedDevice.isLive ? "LIVE" : "STALE"} color={selectedDevice.isLive ? "text-[#10b981]" : "text-[#64748b]"} />
@@ -924,9 +924,9 @@ export function GeoMonitorView() {
               </div>
 
               {/* Encryption */}
-              <div className="rounded-md bg-[#0f1729] border border-[#1e3a5f]/50 p-3">
+              <div className="rounded-md bg-[#11161f] border border-[rgba(59,130,246,0.25)]/50 p-3">
                 <div className="text-[10px] uppercase tracking-wider text-[#64748b] mb-2 flex items-center gap-1">
-                  <Shield className="h-3 w-3 text-[#14b8a6]" /> E2E Encryption
+                  <Shield className="h-3 w-3 text-[#3b82f6]" /> E2E Encryption
                 </div>
                 <div className="flex items-center gap-2 mb-1">
                   {selectedDevice.encryptionStatus === "active" ? (
@@ -943,10 +943,10 @@ export function GeoMonitorView() {
 
               {/* Operator card */}
               {selectedDevice.addedBy && (
-                <div className="rounded-md bg-[#0f1729] border border-[#1e3a5f]/50 p-3">
+                <div className="rounded-md bg-[#11161f] border border-[rgba(59,130,246,0.25)]/50 p-3">
                   <div className="text-[10px] uppercase tracking-wider text-[#64748b] mb-2">Operator</div>
                   <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-full bg-[#14b8a6]/15 text-[#14b8a6] flex items-center justify-center text-[10px] font-medium">
+                    <div className="h-8 w-8 rounded-full bg-[#3b82f6]/15 text-[#3b82f6] flex items-center justify-center text-[10px] font-medium">
                       {selectedDevice.addedBy.name?.slice(0, 2).toUpperCase() ?? "??"}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -963,7 +963,7 @@ export function GeoMonitorView() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 cursor-pointer text-[11px] border-[#1e3a5f]/50 text-white hover:bg-[#1e3a5f]/30"
+                  className="h-8 cursor-pointer text-[11px] border-[rgba(59,130,246,0.25)]/50 text-white hover:bg-[rgba(59,130,246,0.25)]/30"
                   onClick={() => {
                     const pos = devicePositions[selectedDevice.id];
                     if (pos) {
@@ -977,7 +977,7 @@ export function GeoMonitorView() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 cursor-pointer text-[11px] border-[#1e3a5f]/50 text-white hover:bg-[#1e3a5f]/30"
+                  className="h-8 cursor-pointer text-[11px] border-[rgba(59,130,246,0.25)]/50 text-white hover:bg-[rgba(59,130,246,0.25)]/30"
                   onClick={() => {
                     const pos = devicePositions[selectedDevice.id];
                     if (pos) {

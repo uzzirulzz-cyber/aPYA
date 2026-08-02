@@ -1,24 +1,26 @@
 "use client";
 
 /**
- * Employee GPS Tracking — FieldServicely-style integration.
+ * Employee GPS Tracking — Neon Navigation Theme.
+ *
+ * Visual style: "Midnight Tech / Cyberpunk Lite"
+ *   - Deep charcoal-navy base (#0d1117, #161b22)
+ *   - Neon blue primary (#3b82f6) for routes, active states, CTAs
+ *   - Magenta (#ec4899), amber (#f59e0b), green (#10b981) for action clusters
+ *   - Schematic/wireframe map with glowing route lines and pulse rings
+ *   - Translucent dark panels with neon borders + glow
+ *   - Monospace coordinates, bold data values
  *
  * Layout:
- *   ┌──── TOP HUD: stats ────┐
- *   │ members | tracked | geofences | open shifts | hours today │
+ *   ┌──── TOP HUD: stats (neon badges) ────┐
  *   ├──────────┬──────────────────────────────┬─────────────────┤
- *   │ LEFT     │       Live Map Canvas         │ RIGHT           │
- *   │ Employees│   (geofences + pings + draw)  │ Activity Feed   │
+ *   │ LEFT     │       Neon Map Canvas         │ RIGHT           │
+ *   │ Employees│   (wireframe + glow routes)   │ Activity Feed   │
  *   │ + filter │                               │ + open shifts   │
  *   │ 288px    │                               │ 320px           │
  *   ├──────────┴──────────────────────────────┴─────────────────┤
  *   │ BOTTOM: Timesheet + Geofence manager (collapsible)        │
  *   └────────────────────────────────────────────────────────────┘
- *
- * Modes:
- *   - View: pan/zoom the map, click employees to focus
- *   - Draw Geofence: click on map to drop a geofence center, then
- *     configure name/radius in the dialog
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -32,10 +34,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
-  Globe, Users, MapPin, Clock, Plus, Trash2, Pencil, Crosshair,
-  Activity, Battery, Signal, Radio, ZoomIn, ZoomOut, LocateFixed,
+  Users, MapPin, Clock, Plus, Trash2, Pencil, Crosshair,
+  Activity, Battery, Signal, ZoomIn, ZoomOut, LocateFixed,
   ShieldCheck, LogIn, LogOut, Search, X, Layers, Navigation,
-  Route, Calendar, TrendingUp, AlertTriangle, CheckCircle2,
+  Route, Calendar, TrendingUp, Globe, Target, Flag, Share2,
 } from "lucide-react";
 
 interface Member {
@@ -121,19 +123,46 @@ interface SummaryData {
   };
 }
 
-const GEOFENCE_COLORS = ["#14b8a6", "#f59e0b", "#3b82f6", "#a855f7", "#ec4899", "#10b981", "#ef4444"];
+// ── THEME TOKENS ──────────────────────────────────────────────────────────
+const T = {
+  // Base backgrounds
+  bg0: "#0d1117",          // deepest
+  bg1: "#161b22",          // panel
+  bg2: "#1c2230",          // raised
+  // Borders
+  border: "rgba(48, 54, 61, 0.8)",
+  borderNeon: "rgba(59, 130, 246, 0.4)",
+  // Neon accents
+  neonBlue: "#3b82f6",
+  neonBlueGlow: "rgba(59, 130, 246, 0.5)",
+  neonPink: "#ec4899",
+  neonAmber: "#f59e0b",
+  neonGreen: "#10b981",
+  neonCyan: "#06b6d4",
+  // Text
+  textPrimary: "#f0f6fc",
+  textSecondary: "#8b949e",
+  textMuted: "#6e7681",
+  // Map
+  mapBg: "#0d1117",
+  mapLandmass: "rgba(48, 54, 61, 0.5)",
+  mapRoad: "rgba(72, 81, 92, 0.4)",
+  mapGrid: "rgba(59, 130, 246, 0.06)",
+};
+
+const GEOFENCE_COLORS = [
+  { hex: "#3b82f6", name: "Blue" },
+  { hex: "#ec4899", name: "Pink" },
+  { hex: "#f59e0b", name: "Amber" },
+  { hex: "#10b981", name: "Green" },
+  { hex: "#a855f7", name: "Purple" },
+  { hex: "#06b6d4", name: "Cyan" },
+];
 const GEOFENCE_TYPES = [
   { value: "jobsite", label: "Job Site" },
   { value: "office", label: "Office" },
   { value: "restricted", label: "Restricted Zone" },
   { value: "client_site", label: "Client Site" },
-];
-
-// World regions used for initial geofence placement hints
-const WORLD_REGIONS = [
-  { lat: 40.7128, lon: -74.0060, name: "New York" },
-  { lat: 51.5074, lon: -0.1278, name: "London" },
-  { lat: 34.1718, lon: 73.2389, name: "Abbottabad" },
 ];
 
 type MapMode = "view" | "drawGeofence";
@@ -146,19 +175,17 @@ export function EmployeeTrackingView() {
   const [showRouteFor, setShowRouteFor] = useState<string | null>(null);
   const [routePoints, setRoutePoints] = useState<Array<{ lat: number; lon: number; timestamp: string }>>([]);
 
-  // Geofence creation
   const [mapMode, setMapMode] = useState<MapMode>("view");
   const [pendingGeofence, setPendingGeofence] = useState<{ lat: number; lon: number } | null>(null);
   const [geofenceForm, setGeofenceForm] = useState({
     name: "",
     description: "",
     radiusMeters: 150,
-    color: GEOFENCE_COLORS[0],
+    color: GEOFENCE_COLORS[0].hex,
     type: "jobsite",
   });
   const [editGeofence, setEditGeofence] = useState<Geofence | null>(null);
 
-  // Zoom / pan
   const [zoom, setZoom] = useState(1);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
@@ -193,7 +220,6 @@ export function EmployeeTrackingView() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Fetch route history when showRouteFor changes
   useEffect(() => {
     if (!showRouteFor) {
       setRoutePoints([]);
@@ -216,7 +242,6 @@ export function EmployeeTrackingView() {
     })();
   }, [showRouteFor, data]);
 
-  // Keep target pan centered on selected member
   useEffect(() => {
     if (!selectedMemberId || !data) {
       targetZoom.current = 1;
@@ -236,7 +261,6 @@ export function EmployeeTrackingView() {
     targetPanY.current = rect.height / 2 - dy * tz;
   }, [selectedMemberId, data]);
 
-  // Animation loop
   useEffect(() => {
     const animate = () => {
       animationRef.current = requestAnimationFrame(animate);
@@ -262,15 +286,11 @@ export function EmployeeTrackingView() {
     return data.members.filter((m) => {
       if (!search) return true;
       const q = search.toLowerCase();
-      return (
-        m.name.toLowerCase().includes(q) ||
-        m.email.toLowerCase().includes(q) ||
-        m.role.toLowerCase().includes(q)
-      );
+      return m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q) || m.role.toLowerCase().includes(q);
     });
   }, [data, search]);
 
-  // Map drawing
+  // ── MAP DRAWING ────────────────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -290,25 +310,26 @@ export function EmployeeTrackingView() {
     ctx.translate(panX, panY);
     ctx.scale(zoom, zoom);
 
-    // Background
-    const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
-    bgGrad.addColorStop(0, "#0a0e1a");
-    bgGrad.addColorStop(0.5, "#0f1729");
-    bgGrad.addColorStop(1, "#0a0e1a");
+    // Background — deep navy gradient
+    const bgGrad = ctx.createRadialGradient(w * 0.5, h * 0.5, 0, w * 0.5, h * 0.5, Math.max(w, h));
+    bgGrad.addColorStop(0, "#11161f");
+    bgGrad.addColorStop(0.6, T.bg0);
+    bgGrad.addColorStop(1, "#06090f");
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, w, h);
 
-    // Grid
-    ctx.strokeStyle = "rgba(30, 58, 95, 0.18)";
+    // Subtle grid (blueprint feel)
+    ctx.strokeStyle = T.mapGrid;
     ctx.lineWidth = 0.5 / zoom;
-    for (let x = 0; x < w; x += 60) {
+    const gridStep = 40;
+    for (let x = 0; x < w; x += gridStep) {
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
     }
-    for (let y = 0; y < h; y += 60) {
+    for (let y = 0; y < h; y += gridStep) {
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
     }
 
-    // Continents
+    // Continent wireframe (schematic style)
     const drawContinent = (pts: number[][]) => {
       ctx.beginPath();
       pts.forEach(([px, py], i) => {
@@ -316,9 +337,9 @@ export function EmployeeTrackingView() {
         else ctx.lineTo(px * w, py * h);
       });
       ctx.closePath();
-      ctx.fillStyle = "rgba(30, 58, 95, 0.18)";
+      ctx.fillStyle = T.mapLandmass;
       ctx.fill();
-      ctx.strokeStyle = "rgba(45, 74, 111, 0.4)";
+      ctx.strokeStyle = "rgba(59, 130, 246, 0.15)";
       ctx.lineWidth = 1 / zoom;
       ctx.stroke();
     };
@@ -329,49 +350,68 @@ export function EmployeeTrackingView() {
     drawContinent([[0.58,0.10],[0.78,0.08],[0.84,0.14],[0.82,0.28],[0.75,0.32],[0.66,0.30],[0.58,0.22],[0.58,0.10]]);
     drawContinent([[0.74,0.50],[0.84,0.48],[0.87,0.56],[0.84,0.64],[0.76,0.66],[0.72,0.58],[0.74,0.50]]);
 
-    // Geofences
+    // Latitude/longitude lines (faint neon)
+    ctx.strokeStyle = "rgba(59, 130, 246, 0.08)";
+    ctx.lineWidth = 0.5 / zoom;
+    [0.25, 0.5, 0.75].forEach((p) => {
+      ctx.beginPath(); ctx.moveTo(0, p * h); ctx.lineTo(w, p * h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(p * w, 0); ctx.lineTo(p * w, h); ctx.stroke();
+    });
+
+    // Geofences (neon-bordered circles with glow)
     const geofences = data?.geofences ?? [];
     geofences.forEach((g) => {
       const cx = ((g.lon + 180) / 360) * w;
       const cy = ((90 - g.lat) / 180) * h;
-      // Convert meters → pixels (approximate, scaled to map)
       const radiusPx = metersToPixels(g.radiusMeters, g.lat, w);
 
-      // Fill
-      ctx.fillStyle = hexToRgba(g.color, g.isActive ? 0.12 : 0.05);
+      // Glow fill
+      ctx.fillStyle = hexToRgba(g.color, g.isActive ? 0.08 : 0.03);
       ctx.beginPath();
       ctx.arc(cx, cy, radiusPx, 0, Math.PI * 2);
       ctx.fill();
 
-      // Border
-      ctx.strokeStyle = hexToRgba(g.color, g.isActive ? 0.7 : 0.3);
-      ctx.lineWidth = (selectedMemberId && data?.latestPings[selectedMemberId]?.insideGeofenceIds.includes(g.id) ? 2 : 1.2) / zoom;
-      ctx.setLineDash([6 / zoom, 4 / zoom]);
+      // Outer glow
+      ctx.shadowColor = g.color;
+      ctx.shadowBlur = 12 / zoom;
+      ctx.strokeStyle = hexToRgba(g.color, g.isActive ? 0.8 : 0.3);
+      ctx.lineWidth = (selectedMemberId && data?.latestPings[selectedMemberId]?.insideGeofenceIds.includes(g.id) ? 2.5 : 1.5) / zoom;
+      ctx.setLineDash([8 / zoom, 5 / zoom]);
       ctx.beginPath();
       ctx.arc(cx, cy, radiusPx, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
+      ctx.shadowBlur = 0;
 
-      // Center dot
-      ctx.fillStyle = g.color;
+      // Center crosshair
+      ctx.strokeStyle = hexToRgba(g.color, 0.9);
+      ctx.lineWidth = 1 / zoom;
       ctx.beginPath();
-      ctx.arc(cx, cy, 3 / zoom, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(cx - 4, cy); ctx.lineTo(cx + 4, cy);
+      ctx.moveTo(cx, cy - 4); ctx.lineTo(cx, cy + 4);
+      ctx.stroke();
 
-      // Label
-      ctx.fillStyle = hexToRgba(g.color, 0.95);
+      // Label with background pill
+      const label = g.name.slice(0, 16);
       ctx.font = `bold ${10 / zoom}px sans-serif`;
+      const labelW = ctx.measureText(label).width + 10;
+      ctx.fillStyle = "rgba(13, 17, 23, 0.9)";
+      ctx.fillRect(cx - labelW / 2, cy - radiusPx - 18 / zoom, labelW, 14 / zoom);
+      ctx.strokeStyle = hexToRgba(g.color, 0.5);
+      ctx.lineWidth = 0.5 / zoom;
+      ctx.strokeRect(cx - labelW / 2, cy - radiusPx - 18 / zoom, labelW, 14 / zoom);
+      ctx.fillStyle = g.color;
       ctx.textAlign = "center";
-      ctx.fillText(g.name.slice(0, 16), cx, cy - radiusPx - 6 / zoom);
-      ctx.fillStyle = "rgba(148, 163, 184, 0.6)";
-      ctx.font = `${9 / zoom}px monospace`;
-      ctx.fillText(`r=${g.radiusMeters}m`, cx, cy - radiusPx - 18 / zoom);
+      ctx.fillText(label, cx, cy - radiusPx - 7 / zoom);
     });
 
-    // Route history polyline (if any)
+    // Route history polyline with neon glow
     if (routePoints.length > 1) {
-      ctx.strokeStyle = "rgba(245, 158, 11, 0.6)";
-      ctx.lineWidth = 2 / zoom;
+      // Outer glow
+      ctx.shadowColor = T.neonAmber;
+      ctx.shadowBlur = 16 / zoom;
+      ctx.strokeStyle = hexToRgba(T.neonAmber, 0.7);
+      ctx.lineWidth = 3 / zoom;
       ctx.beginPath();
       routePoints.forEach((p, i) => {
         const x = ((p.lon + 180) / 360) * w;
@@ -380,18 +420,33 @@ export function EmployeeTrackingView() {
         else ctx.lineTo(x, y);
       });
       ctx.stroke();
-      // Dots at each point
-      ctx.fillStyle = "rgba(245, 158, 11, 0.8)";
+      // Inner bright line
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = T.neonAmber;
+      ctx.lineWidth = 1.5 / zoom;
+      ctx.beginPath();
+      routePoints.forEach((p, i) => {
+        const x = ((p.lon + 180) / 360) * w;
+        const y = ((90 - p.lat) / 180) * h;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      // Waypoint dots
+      ctx.fillStyle = T.neonAmber;
+      ctx.shadowColor = T.neonAmber;
+      ctx.shadowBlur = 8 / zoom;
       routePoints.forEach((p) => {
         const x = ((p.lon + 180) / 360) * w;
         const y = ((90 - p.lat) / 180) * h;
         ctx.beginPath();
-        ctx.arc(x, y, 2 / zoom, 0, Math.PI * 2);
+        ctx.arc(x, y, 2.5 / zoom, 0, Math.PI * 2);
         ctx.fill();
       });
+      ctx.shadowBlur = 0;
     }
 
-    // Employee pings
+    // Employee markers
     filteredMembers.forEach((m) => {
       const ping = data?.latestPings[m.id];
       if (!ping) return;
@@ -399,81 +454,109 @@ export function EmployeeTrackingView() {
       const y = ((90 - ping.lat) / 180) * h;
       const isSelected = selectedMemberId === m.id;
       const isInside = ping.insideGeofenceIds.length > 0;
-      const color = isInside ? "#10b981" : "#3b82f6";
+      const color = isSelected ? T.neonAmber : isInside ? T.neonGreen : T.neonBlue;
 
-      // Pulse
-      const pulsePhase = (time * 1.5) % (Math.PI * 2);
-      ctx.strokeStyle = `rgba(${isInside ? "16, 185, 129" : "59, 130, 246"}, ${0.2 + Math.sin(pulsePhase) * 0.1})`;
+      // Pulsing ripple rings
+      const pulsePhase = (time * 1.2) % (Math.PI * 2);
+      const ringR1 = 14 + Math.sin(pulsePhase) * 6;
+      const ringR2 = 22 + Math.sin(pulsePhase + 1) * 8;
+      ctx.strokeStyle = hexToRgba(color, 0.3 - Math.sin(pulsePhase) * 0.1);
       ctx.lineWidth = 1.5 / zoom;
       ctx.beginPath();
-      ctx.arc(x, y, 14 + Math.sin(pulsePhase) * 4, 0, Math.PI * 2);
+      ctx.arc(x, y, ringR1, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = hexToRgba(color, 0.15 - Math.sin(pulsePhase + 1) * 0.05);
+      ctx.beginPath();
+      ctx.arc(x, y, ringR2, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Glow
-      ctx.fillStyle = isSelected ? "rgba(245, 158, 11, 0.25)" : `rgba(${isInside ? "16, 185, 129" : "59, 130, 246"}, 0.18)`;
+      // Glow halo
+      ctx.shadowColor = color;
+      ctx.shadowBlur = isSelected ? 24 / zoom : 16 / zoom;
+      ctx.fillStyle = hexToRgba(color, 0.25);
       ctx.beginPath();
-      ctx.arc(x, y, isSelected ? 16 : 12, 0, Math.PI * 2);
+      ctx.arc(x, y, isSelected ? 14 : 10, 0, Math.PI * 2);
       ctx.fill();
 
-      // Dot
-      ctx.fillStyle = isSelected ? "#f59e0b" : color;
+      // Solid center dot
+      ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(x, y, isSelected ? 5 : 4, 0, Math.PI * 2);
+      ctx.arc(x, y, isSelected ? 6 : 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Inner white core
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(x, y, isSelected ? 2.5 : 1.8, 0, Math.PI * 2);
       ctx.fill();
 
-      // Label
-      ctx.fillStyle = isSelected ? "#f59e0b" : "rgba(241, 245, 249, 0.85)";
-      ctx.font = isSelected ? `bold ${10 / zoom}px sans-serif` : `${9 / zoom}px sans-serif`;
+      // Label with pill background
+      const label = (m.name || m.email).slice(0, 14);
+      ctx.font = isSelected ? `bold ${11 / zoom}px sans-serif` : `${10 / zoom}px sans-serif`;
+      const labelW = ctx.measureText(label).width + 12;
+      ctx.fillStyle = "rgba(13, 17, 23, 0.92)";
+      ctx.fillRect(x - labelW / 2, y - 28 / zoom, labelW, 14 / zoom);
+      ctx.strokeStyle = hexToRgba(color, 0.6);
+      ctx.lineWidth = 0.5 / zoom;
+      ctx.strokeRect(x - labelW / 2, y - 28 / zoom, labelW, 14 / zoom);
+      ctx.fillStyle = color;
       ctx.textAlign = "center";
-      ctx.fillText(m.name?.slice(0, 14) ?? m.email.slice(0, 14), x, y - 14);
+      ctx.fillText(label, x, y - 18 / zoom);
 
       // Battery indicator
       if (ping.batteryPercent != null) {
-        ctx.fillStyle = ping.batteryPercent > 50 ? "#10b981" : ping.batteryPercent > 20 ? "#f59e0b" : "#ef4444";
-        ctx.font = `${8 / zoom}px monospace`;
-        ctx.fillText(`${ping.batteryPercent}%`, x + 12, y + 3);
+        const bat = ping.batteryPercent;
+        const batColor = bat > 50 ? T.neonGreen : bat > 20 ? T.neonAmber : "#ef4444";
+        ctx.fillStyle = batColor;
+        ctx.font = `${9 / zoom}px monospace`;
+        ctx.textAlign = "left";
+        ctx.fillText(`${bat}%`, x + 10, y + 4);
       }
     });
 
-    // Pending geofence preview (draw mode)
+    // Pending geofence preview
     if (pendingGeofence) {
       const cx = ((pendingGeofence.lon + 180) / 360) * w;
       const cy = ((90 - pendingGeofence.lat) / 180) * h;
       const radiusPx = metersToPixels(geofenceForm.radiusMeters, pendingGeofence.lat, w);
+      ctx.shadowColor = geofenceForm.color;
+      ctx.shadowBlur = 12 / zoom;
       ctx.fillStyle = hexToRgba(geofenceForm.color, 0.15);
       ctx.beginPath();
       ctx.arc(cx, cy, radiusPx, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = hexToRgba(geofenceForm.color, 0.8);
-      ctx.lineWidth = 1.5 / zoom;
-      ctx.setLineDash([6 / zoom, 4 / zoom]);
+      ctx.strokeStyle = hexToRgba(geofenceForm.color, 0.9);
+      ctx.lineWidth = 1.8 / zoom;
+      ctx.setLineDash([8 / zoom, 5 / zoom]);
       ctx.beginPath();
       ctx.arc(cx, cy, radiusPx, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
+      ctx.shadowBlur = 0;
       // Crosshair
-      ctx.strokeStyle = hexToRgba(geofenceForm.color, 1);
+      ctx.strokeStyle = geofenceForm.color;
       ctx.lineWidth = 1.5 / zoom;
       ctx.beginPath();
-      ctx.moveTo(cx - 10, cy); ctx.lineTo(cx + 10, cy);
-      ctx.moveTo(cx, cy - 10); ctx.lineTo(cx, cy + 10);
+      ctx.moveTo(cx - 12, cy); ctx.lineTo(cx + 12, cy);
+      ctx.moveTo(cx, cy - 12); ctx.lineTo(cx, cy + 12);
       ctx.stroke();
     }
 
     ctx.restore();
 
-    // Mode banner
+    // ── Fixed HUD overlays ───────────────────────────────────────────────
     if (mapMode === "drawGeofence") {
-      ctx.fillStyle = "rgba(245, 158, 11, 0.15)";
+      ctx.fillStyle = "rgba(245, 158, 11, 0.12)";
       ctx.fillRect(w / 2 - 180, 12, 360, 32);
-      ctx.strokeStyle = "rgba(245, 158, 11, 0.6)";
+      ctx.strokeStyle = "rgba(245, 158, 11, 0.7)";
       ctx.lineWidth = 1;
       ctx.strokeRect(w / 2 - 180, 12, 360, 32);
-      ctx.fillStyle = "#f59e0b";
+      ctx.fillStyle = T.neonAmber;
       ctx.font = "bold 11px monospace";
       ctx.textAlign = "center";
-      ctx.fillText("GEOFENCE PLACEMENT MODE", w / 2, 28);
-      ctx.fillStyle = "rgba(241, 245, 249, 0.7)";
+      ctx.fillText("◇ GEOFENCE PLACEMENT MODE ◇", w / 2, 28);
+      ctx.fillStyle = T.textSecondary;
       ctx.font = "9px monospace";
       ctx.fillText("Click on map to set center · Esc to cancel", w / 2, 40);
     }
@@ -516,16 +599,13 @@ export function EmployeeTrackingView() {
     const worldY = (clickY - panY) / zoom;
 
     if (mapMode === "drawGeofence") {
-      // Convert canvas coords → lat/lon
       const lon = (worldX / rect.width) * 360 - 180;
       const lat = 90 - (worldY / rect.height) * 180;
       setPendingGeofence({ lat, lon });
       return;
     }
-
     if (isDragging.current) return;
 
-    // Click on member
     for (const m of filteredMembers) {
       const ping = data?.latestPings[m.id];
       if (!ping) continue;
@@ -556,7 +636,6 @@ export function EmployeeTrackingView() {
     setShowRouteFor(null);
   };
 
-  // Geofence create
   const saveGeofence = async () => {
     if (!pendingGeofence) return;
     if (!geofenceForm.name.trim()) {
@@ -584,7 +663,7 @@ export function EmployeeTrackingView() {
       }
       toast.success(`Geofence "${geofenceForm.name}" created`);
       setPendingGeofence(null);
-      setGeofenceForm({ name: "", description: "", radiusMeters: 150, color: GEOFENCE_COLORS[0], type: "jobsite" });
+      setGeofenceForm({ name: "", description: "", radiusMeters: 150, color: GEOFENCE_COLORS[0].hex, type: "jobsite" });
       setMapMode("view");
       fetchData();
     } catch {
@@ -623,7 +702,6 @@ export function EmployeeTrackingView() {
     }
   };
 
-  // Manual clock in/out (admin action on behalf — for demo / testing)
   const manualClock = async (memberId: string, action: "clock_in" | "clock_out") => {
     const ping = data?.latestPings[memberId];
     try {
@@ -649,14 +727,11 @@ export function EmployeeTrackingView() {
     }
   };
 
-  // Keyboard: Esc cancels draw mode
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (mapMode === "drawGeofence") {
-          setMapMode("view");
-          setPendingGeofence(null);
-        }
+      if (e.key === "Escape" && mapMode === "drawGeofence") {
+        setMapMode("view");
+        setPendingGeofence(null);
       }
     };
     window.addEventListener("keydown", handler);
@@ -667,38 +742,57 @@ export function EmployeeTrackingView() {
   const secondsSinceFetch = lastFetchRef.current ? Math.floor((Date.now() - lastFetchRef.current) / 1000) : 0;
 
   return (
-    <div className="h-[calc(100vh-3.5rem-2.5rem)] flex flex-col bg-[#0a0e1a] relative overflow-hidden">
+    <div
+      className="h-[calc(100vh-3.5rem-2.5rem)] flex flex-col relative overflow-hidden"
+      style={{ backgroundColor: T.bg0, color: T.textPrimary }}
+    >
       {/* Top HUD bar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-[#1e3a5f]/50 bg-[#0a0e1a]/90 backdrop-blur z-20">
+      <div
+        className="flex items-center justify-between px-4 py-2 z-20"
+        style={{
+          backgroundColor: "rgba(13, 17, 23, 0.92)",
+          borderBottom: `1px solid ${T.borderNeon}`,
+          backdropFilter: "blur(16px)",
+        }}
+      >
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <Globe className="h-5 w-5 text-[#14b8a6]" />
+            <div
+              className="h-8 w-8 rounded-lg flex items-center justify-center"
+              style={{
+                backgroundColor: "rgba(59, 130, 246, 0.12)",
+                border: `1px solid ${T.borderNeon}`,
+                boxShadow: `0 0 12px ${T.neonBlueGlow}`,
+              }}
+            >
+              <Navigation className="h-4 w-4" style={{ color: T.neonBlue }} />
+            </div>
             <div>
-              <h1 className="text-sm font-bold text-white tracking-tight">Employee GPS Tracking</h1>
-              <p className="text-[10px] text-[#64748b]">FieldServicely-style · geofenced attendance · live map · timesheets</p>
+              <h1 className="text-sm font-bold tracking-tight" style={{ color: T.textPrimary }}>
+                Employee GPS Tracking
+              </h1>
+              <p className="text-[10px] font-mono" style={{ color: T.textMuted }}>
+                LIVE · GEOFENCED ATTENDANCE · ROUTE HISTORY
+              </p>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge className="bg-[#14b8a6]/15 text-[#14b8a6] border-[#14b8a6]/30 text-[10px]">
-            <Users className="h-2.5 w-2.5 mr-1" /> {stats?.totalMembers ?? 0} members
-          </Badge>
-          <Badge className="bg-[#10b981]/15 text-[#10b981] border-[#10b981]/30 text-[10px]">
-            <Signal className="h-2.5 w-2.5 mr-1" /> {stats?.trackedMembers ?? 0} tracked
-          </Badge>
-          <Badge variant="outline" className="text-[10px] border-[#334155] text-[#94a3b8]">
-            <MapPin className="h-2.5 w-2.5 mr-1" /> {stats?.totalGeofences ?? 0} geofences
-          </Badge>
-          <Badge variant="outline" className="text-[10px] border-[#334155] text-[#94a3b8]">
-            <Clock className="h-2.5 w-2.5 mr-1" /> {stats?.openShifts ?? 0} open shifts
-          </Badge>
-          <Badge variant="outline" className="text-[10px] border-[#334155] text-[#f59e0b]">
-            <TrendingUp className="h-2.5 w-2.5 mr-1" /> {stats?.totalHoursToday ?? 0}h today
-          </Badge>
-          <div className="flex items-center gap-1 text-[10px] text-[#64748b] font-mono ml-1">
+          <StatPill icon={<Users className="h-2.5 w-2.5" />} value={stats?.totalMembers ?? 0} label="members" color={T.neonCyan} />
+          <StatPill icon={<Signal className="h-2.5 w-2.5" />} value={stats?.trackedMembers ?? 0} label="tracked" color={T.neonGreen} />
+          <StatPill icon={<MapPin className="h-2.5 w-2.5" />} value={stats?.totalGeofences ?? 0} label="geofences" color={T.neonBlue} />
+          <StatPill icon={<Clock className="h-2.5 w-2.5" />} value={stats?.openShifts ?? 0} label="open" color={T.neonAmber} />
+          <StatPill icon={<TrendingUp className="h-2.5 w-2.5" />} value={stats?.totalHoursToday ?? 0} label="h today" color={T.neonPink} />
+          <div className="flex items-center gap-1 text-[10px] font-mono ml-1" style={{ color: T.textMuted }}>
             <Clock className="h-2.5 w-2.5" /> {secondsSinceFetch}s
           </div>
-          <Button variant="ghost" size="sm" className="h-7 cursor-pointer text-[#64748b] hover:text-white" onClick={fetchData}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 cursor-pointer"
+            style={{ color: T.textSecondary }}
+            onClick={fetchData}
+          >
             <Activity className="h-3 w-3" />
           </Button>
         </div>
@@ -707,82 +801,126 @@ export function EmployeeTrackingView() {
       {/* Main split */}
       <div className="flex-1 flex min-h-0">
         {/* LEFT: Employees */}
-        <aside className="w-72 shrink-0 border-r border-[#1e3a5f]/50 bg-[#0a0e1a]/80 backdrop-blur flex flex-col">
-          <div className="p-3 border-b border-[#1e3a5f]/50 space-y-2">
+        <aside
+          className="w-72 shrink-0 flex flex-col"
+          style={{
+            backgroundColor: "rgba(13, 17, 23, 0.85)",
+            borderRight: `1px solid ${T.border}`,
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          <div className="p-3 space-y-2" style={{ borderBottom: `1px solid ${T.border}` }}>
             <div className="flex items-center gap-2">
-              <Users className="h-3.5 w-3.5 text-[#14b8a6]" />
-              <span className="text-xs font-semibold text-white">Field Employees</span>
-              <Badge variant="outline" className="ml-auto text-[9px] border-[#334155] text-[#94a3b8]">
+              <Users className="h-3.5 w-3.5" style={{ color: T.neonBlue }} />
+              <span className="text-xs font-semibold" style={{ color: T.textPrimary }}>Field Employees</span>
+              <Badge
+                className="ml-auto text-[9px] font-mono"
+                style={{
+                  backgroundColor: "rgba(59, 130, 246, 0.1)",
+                  color: T.neonBlue,
+                  border: `1px solid ${T.borderNeon}`,
+                }}
+              >
                 {filteredMembers.length}/{data?.members.length ?? 0}
               </Badge>
             </div>
             <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-[#64748b]" />
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3" style={{ color: T.textMuted }} />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search name, email, role..."
-                className="h-7 pl-7 text-xs bg-[#0a0e1a] border-[#1e3a5f]/50 text-white placeholder:text-[#475569]"
+                className="h-7 pl-7 text-xs"
+                style={{
+                  backgroundColor: T.bg1,
+                  borderColor: T.border,
+                  color: T.textPrimary,
+                }}
               />
             </div>
           </div>
           <ScrollArea className="flex-1">
-            <div className="divide-y divide-[#1e3a5f]/30">
+            <div>
               {filteredMembers.length === 0 ? (
-                <div className="p-4 text-center text-xs text-[#64748b]">No employees match.</div>
+                <div className="p-4 text-center text-xs" style={{ color: T.textMuted }}>
+                  No employees match.
+                </div>
               ) : (
                 filteredMembers.map((m) => {
                   const ping = data?.latestPings[m.id];
                   const isSelected = selectedMemberId === m.id;
-                  const isInside = ping?.insideGeofenceIds.length ?? 0 > 0;
+                  const isInside = (ping?.insideGeofenceIds.length ?? 0) > 0;
                   const openEntry = data?.openEntries.find((e) => e.user.id === m.id);
                   const hoursToday = (data?.stats.hoursByUser[m.id] ?? 0) / 3600;
                   return (
                     <div
                       key={m.id}
                       onClick={() => setSelectedMemberId(isSelected ? null : m.id)}
-                      className={`p-3 cursor-pointer transition-all ${isSelected ? "bg-[#f59e0b]/5 border-l-2 border-l-[#f59e0b]" : "hover:bg-[#1e3a5f]/20 border-l-2 border-l-transparent"}`}
+                      className="p-3 cursor-pointer transition-all"
+                      style={{
+                        borderBottom: `1px solid ${T.border}`,
+                        borderLeft: `2px solid ${isSelected ? T.neonAmber : "transparent"}`,
+                        backgroundColor: isSelected ? "rgba(245, 158, 11, 0.06)" : "transparent",
+                      }}
+                      onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = "rgba(59, 130, 246, 0.06)"; }}
+                      onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = "transparent"; }}
                     >
                       <div className="flex items-start gap-2.5">
                         <div className="relative shrink-0">
-                          <div className="h-8 w-8 rounded-full bg-[#14b8a6]/15 text-[#14b8a6] flex items-center justify-center text-[10px] font-medium">
+                          <div
+                            className="h-8 w-8 rounded-full flex items-center justify-center text-[10px] font-medium"
+                            style={{
+                              backgroundColor: "rgba(59, 130, 246, 0.15)",
+                              color: T.neonBlue,
+                              border: `1px solid ${T.borderNeon}`,
+                            }}
+                          >
                             {m.name?.slice(0, 2).toUpperCase() ?? m.email.slice(0, 2).toUpperCase()}
                           </div>
                           {ping && (
-                            <div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border border-[#0a0e1a] ${isInside ? "bg-[#10b981]" : "bg-[#3b82f6]"}`} />
+                            <div
+                              className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full"
+                              style={{
+                                backgroundColor: isInside ? T.neonGreen : T.neonBlue,
+                                border: `1.5px solid ${T.bg0}`,
+                                boxShadow: `0 0 6px ${isInside ? T.neonGreen : T.neonBlue}`,
+                              }}
+                            />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium text-white truncate">{m.name ?? m.email}</div>
-                          <div className="text-[10px] text-[#64748b] truncate">{m.email}</div>
+                          <div className="text-xs font-medium truncate" style={{ color: T.textPrimary }}>
+                            {m.name ?? m.email}
+                          </div>
+                          <div className="text-[10px] truncate" style={{ color: T.textMuted }}>{m.email}</div>
                           {ping ? (
                             <>
-                              <div className="text-[9px] text-[#14b8a6] font-mono mt-0.5">
+                              <div className="text-[9px] font-mono mt-0.5" style={{ color: T.neonCyan }}>
                                 {ping.lat.toFixed(4)}°N, {Math.abs(ping.lon).toFixed(4)}°{ping.lon >= 0 ? "E" : "W"}
                               </div>
-                              <div className="flex items-center gap-2 mt-1">
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
                                 {isInside && (
-                                  <Badge className="text-[8px] h-3.5 px-1 bg-[#10b981]/15 text-[#10b981] border-[#10b981]/30">
-                                    <MapPin className="h-2 w-2 mr-0.5" /> IN GEOFENCE
-                                  </Badge>
+                                  <NeonBadge color={T.neonGreen} icon={<MapPin className="h-2 w-2 mr-0.5" />}>
+                                    IN ZONE
+                                  </NeonBadge>
                                 )}
                                 {openEntry && (
-                                  <Badge className="text-[8px] h-3.5 px-1 bg-[#14b8a6]/15 text-[#14b8a6] border-[#14b8a6]/30">
-                                    <Clock className="h-2 w-2 mr-0.5" /> ON SHIFT
-                                  </Badge>
+                                  <NeonBadge color={T.neonBlue} icon={<Clock className="h-2 w-2 mr-0.5" />}>
+                                    ON SHIFT
+                                  </NeonBadge>
                                 )}
                                 {ping.batteryPercent != null && (
-                                  <span className="text-[9px] text-[#64748b] flex items-center gap-0.5">
+                                  <span className="text-[9px] flex items-center gap-0.5" style={{ color: T.textMuted }}>
                                     <Battery className="h-2 w-2" /> {ping.batteryPercent}%
                                   </span>
                                 )}
                               </div>
-                              <div className="text-[9px] text-[#475569] mt-0.5">
+                              <div className="text-[9px] mt-0.5" style={{ color: T.textMuted }}>
                                 {hoursToday > 0 ? `${hoursToday.toFixed(1)}h today` : "No hours today"}
                               </div>
                             </>
                           ) : (
-                            <div className="text-[9px] text-[#475569] mt-0.5">No location data</div>
+                            <div className="text-[9px] mt-0.5" style={{ color: T.textMuted }}>No location data</div>
                           )}
                         </div>
                       </div>
@@ -793,49 +931,31 @@ export function EmployeeTrackingView() {
             </div>
           </ScrollArea>
 
-          {/* Selected member actions */}
+          {/* Selected member actions — neon circular buttons */}
           {selectedMemberId && (
-            <div className="p-3 border-t border-[#1e3a5f]/50 space-y-2 bg-[#0a0e1a]">
-              <div className="text-[10px] font-mono uppercase tracking-wider text-[#64748b]">Selected Member Actions</div>
-              <div className="grid grid-cols-2 gap-1.5">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-[10px] cursor-pointer border-[#1e3a5f]/50 text-white hover:bg-[#1e3a5f]/30"
-                  onClick={() => setShowRouteFor(showRouteFor === selectedMemberId ? null : selectedMemberId)}
-                >
-                  <Route className="h-3 w-3 mr-1" /> {showRouteFor === selectedMemberId ? "Hide Route" : "Route"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-[10px] cursor-pointer border-[#1e3a5f]/50 text-white hover:bg-[#1e3a5f]/30"
-                  onClick={() => {
-                    const ping = data?.latestPings[selectedMemberId];
-                    if (ping) {
-                      navigator.clipboard.writeText(`${ping.lat.toFixed(6)},${ping.lon.toFixed(6)}`);
-                      toast.success("Coordinates copied");
-                    }
-                  }}
-                >
-                  <Crosshair className="h-3 w-3 mr-1" /> Copy GPS
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-[10px] cursor-pointer border-[#10b981]/40 text-[#10b981] hover:bg-[#10b981]/10"
-                  onClick={() => manualClock(selectedMemberId, "clock_in")}
-                >
-                  <LogIn className="h-3 w-3 mr-1" /> Clock In
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-[10px] cursor-pointer border-[#f59e0b]/40 text-[#f59e0b] hover:bg-[#f59e0b]/10"
-                  onClick={() => manualClock(selectedMemberId, "clock_out")}
-                >
-                  <LogOut className="h-3 w-3 mr-1" /> Clock Out
-                </Button>
+            <div className="p-3 space-y-2" style={{ borderTop: `1px solid ${T.border}`, backgroundColor: T.bg0 }}>
+              <div className="text-[10px] font-mono uppercase tracking-wider" style={{ color: T.textMuted }}>
+                ◆ Quick Actions
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                <NeonActionButton color={T.neonAmber} onClick={() => setShowRouteFor(showRouteFor === selectedMemberId ? null : selectedMemberId)} title="Route">
+                  <Route className="h-3.5 w-3.5" />
+                </NeonActionButton>
+                <NeonActionButton color={T.neonCyan} onClick={() => {
+                  const ping = data?.latestPings[selectedMemberId];
+                  if (ping) {
+                    navigator.clipboard.writeText(`${ping.lat.toFixed(6)},${ping.lon.toFixed(6)}`);
+                    toast.success("Coordinates copied");
+                  }
+                }} title="Copy GPS">
+                  <Crosshair className="h-3.5 w-3.5" />
+                </NeonActionButton>
+                <NeonActionButton color={T.neonGreen} onClick={() => manualClock(selectedMemberId, "clock_in")} title="Clock In">
+                  <LogIn className="h-3.5 w-3.5" />
+                </NeonActionButton>
+                <NeonActionButton color={T.neonPink} onClick={() => manualClock(selectedMemberId, "clock_out")} title="Clock Out">
+                  <LogOut className="h-3.5 w-3.5" />
+                </NeonActionButton>
               </div>
             </div>
           )}
@@ -855,20 +975,37 @@ export function EmployeeTrackingView() {
             onClick={handleCanvasClick}
           />
 
-          {/* Top-left status */}
+          {/* Top-left status overlay */}
           <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-none">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#0a0e1a]/80 backdrop-blur border border-[#1e3a5f]/50">
-              <div className="h-2 w-2 rounded-full bg-[#10b981] animate-pulse" />
-              <span className="text-[10px] text-[#10b981] font-mono font-medium tracking-wider">LIVE TRACKING</span>
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md"
+              style={{
+                backgroundColor: "rgba(13, 17, 23, 0.85)",
+                border: `1px solid ${T.borderNeon}`,
+                backdropFilter: "blur(8px)",
+              }}
+            >
+              <div className="h-2 w-2 rounded-full animate-pulse" style={{ backgroundColor: T.neonGreen, boxShadow: `0 0 6px ${T.neonGreen}` }} />
+              <span className="text-[10px] font-mono font-medium tracking-wider" style={{ color: T.neonGreen }}>
+                LIVE TRACKING
+              </span>
             </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#0a0e1a]/80 backdrop-blur border border-[#1e3a5f]/50">
-              <Clock className="h-2.5 w-2.5 text-[#64748b]" />
-              <span className="text-[10px] text-[#64748b] font-mono">{secondsSinceFetch}s · {data?.members.length ?? 0} employees</span>
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md"
+              style={{ backgroundColor: "rgba(13, 17, 23, 0.85)", border: `1px solid ${T.border}`, backdropFilter: "blur(8px)" }}
+            >
+              <Clock className="h-2.5 w-2.5" style={{ color: T.textMuted }} />
+              <span className="text-[10px] font-mono" style={{ color: T.textSecondary }}>
+                {secondsSinceFetch}s · {data?.members.length ?? 0} units
+              </span>
             </div>
             {zoom > 1.05 && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#0a0e1a]/80 backdrop-blur border border-[#1e3a5f]/50">
-                <ZoomIn className="h-2.5 w-2.5 text-[#14b8a6]" />
-                <span className="text-[10px] text-[#14b8a6] font-mono">{zoom.toFixed(1)}x</span>
+              <div
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md"
+                style={{ backgroundColor: "rgba(13, 17, 23, 0.85)", border: `1px solid ${T.borderNeon}`, backdropFilter: "blur(8px)" }}
+              >
+                <ZoomIn className="h-2.5 w-2.5" style={{ color: T.neonBlue }} />
+                <span className="text-[10px] font-mono" style={{ color: T.neonBlue }}>{zoom.toFixed(1)}x</span>
               </div>
             )}
           </div>
@@ -877,86 +1014,81 @@ export function EmployeeTrackingView() {
           <div className="absolute top-3 right-3 flex flex-col items-end gap-2">
             <div className="flex items-center gap-1">
               {mapMode === "view" ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 cursor-pointer bg-[#14b8a6]/10 text-[#14b8a6] border border-[#14b8a6]/30 hover:bg-[#14b8a6]/20"
-                  onClick={() => { setMapMode("drawGeofence"); setPendingGeofence(null); }}
-                >
+                <NeonCTAButton color={T.neonBlue} onClick={() => { setMapMode("drawGeofence"); setPendingGeofence(null); }}>
                   <Plus className="h-3 w-3" /> Draw Geofence
-                </Button>
+                </NeonCTAButton>
               ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 cursor-pointer bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/30"
-                  onClick={() => { setMapMode("view"); setPendingGeofence(null); }}
-                >
-                  <X className="h-3 w-3" /> Cancel Draw
-                </Button>
+                <NeonCTAButton color={T.neonAmber} onClick={() => { setMapMode("view"); setPendingGeofence(null); }}>
+                  <X className="h-3 w-3" /> Cancel
+                </NeonCTAButton>
               )}
             </div>
-
             <div className="flex flex-col gap-1">
-              <Button variant="ghost" size="icon" className="h-7 w-7 bg-[#0a0e1a]/80 border border-[#1e3a5f]/50 cursor-pointer" onClick={zoomIn}>
+              <NeonIconButton color={T.neonBlue} onClick={zoomIn} title="Zoom in">
                 <ZoomIn className="h-3.5 w-3.5" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-7 w-7 bg-[#0a0e1a]/80 border border-[#1e3a5f]/50 cursor-pointer" onClick={zoomOut}>
+              </NeonIconButton>
+              <NeonIconButton color={T.neonBlue} onClick={zoomOut} title="Zoom out">
                 <ZoomOut className="h-3.5 w-3.5" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-7 w-7 bg-[#0a0e1a]/80 border border-[#1e3a5f]/50 cursor-pointer" onClick={resetView} title="Reset view">
+              </NeonIconButton>
+              <NeonIconButton color={T.neonBlue} onClick={resetView} title="Reset view">
                 <LocateFixed className="h-3.5 w-3.5" />
-              </Button>
+              </NeonIconButton>
             </div>
           </div>
 
           {/* Bottom-left legend */}
           <div className="absolute bottom-3 left-3 flex flex-col gap-1.5 pointer-events-none">
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#0a0e1a]/80 backdrop-blur border border-[#1e3a5f]/50">
-              <div className="h-2 w-2 rounded-full bg-[#10b981]" />
-              <span className="text-[9px] text-[#94a3b8]">Inside geofence</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#0a0e1a]/80 backdrop-blur border border-[#1e3a5f]/50">
-              <div className="h-2 w-2 rounded-full bg-[#3b82f6]" />
-              <span className="text-[9px] text-[#94a3b8]">Outside / roaming</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#0a0e1a]/80 backdrop-blur border border-[#1e3a5f]/50">
-              <div className="h-2 w-2 rounded-full bg-[#f59e0b]" />
-              <span className="text-[9px] text-[#94a3b8]">Selected / locked</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#0a0e1a]/80 backdrop-blur border border-[#1e3a5f]/50">
-              <div className="h-2 w-2 rounded-full border border-[#14b8a6]" />
-              <span className="text-[9px] text-[#94a3b8]">Geofence boundary</span>
-            </div>
+            <LegendItem color={T.neonGreen} label="Inside geofence" />
+            <LegendItem color={T.neonBlue} label="Outside / roaming" />
+            <LegendItem color={T.neonAmber} label="Selected / locked" />
+            <LegendItem color={T.neonAmber} label="Route history" filled={false} />
           </div>
 
           {/* Bottom-right timestamp */}
-          <div className="absolute bottom-3 right-3 text-[9px] font-mono text-[#475569] bg-[#0a0e1a]/80 px-2 py-1 rounded border border-[#1e3a5f]/50">
+          <div
+            className="absolute bottom-3 right-3 text-[9px] font-mono px-2 py-1 rounded"
+            style={{
+              color: T.textMuted,
+              backgroundColor: "rgba(13, 17, 23, 0.85)",
+              border: `1px solid ${T.border}`,
+              backdropFilter: "blur(8px)",
+            }}
+          >
             {new Date().toISOString().slice(0, 19).replace("T", " ")}Z
           </div>
 
           {loading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[#0a0e1a]/80">
-              <Activity className="h-6 w-6 animate-spin text-[#14b8a6]" />
+            <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: "rgba(13, 17, 23, 0.8)" }}>
+              <Activity className="h-6 w-6 animate-spin" style={{ color: T.neonBlue }} />
             </div>
           )}
         </div>
 
         {/* RIGHT: Activity feed */}
-        <aside className="w-80 shrink-0 border-l border-[#1e3a5f]/50 bg-[#0a0e1a]/95 backdrop-blur flex flex-col">
-          <div className="p-3 border-b border-[#1e3a5f]/50 flex items-center justify-between">
+        <aside
+          className="w-80 shrink-0 flex flex-col"
+          style={{
+            backgroundColor: "rgba(13, 17, 23, 0.92)",
+            borderLeft: `1px solid ${T.border}`,
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          <div className="p-3 flex items-center justify-between" style={{ borderBottom: `1px solid ${T.border}` }}>
             <div className="flex items-center gap-2">
-              <Activity className="h-3.5 w-3.5 text-[#14b8a6]" />
-              <span className="text-xs font-semibold text-white">Activity Feed</span>
+              <Activity className="h-3.5 w-3.5" style={{ color: T.neonBlue }} />
+              <span className="text-xs font-semibold" style={{ color: T.textPrimary }}>Activity Feed</span>
             </div>
-            <Badge variant="outline" className="text-[9px] border-[#334155] text-[#94a3b8]">
+            <Badge
+              className="text-[9px] font-mono"
+              style={{ backgroundColor: "rgba(59, 130, 246, 0.1)", color: T.neonBlue, border: `1px solid ${T.borderNeon}` }}
+            >
               {data?.recentEvents.length ?? 0}
             </Badge>
           </div>
           <ScrollArea className="flex-1">
-            <div className="divide-y divide-[#1e3a5f]/30">
+            <div>
               {data?.recentEvents.length === 0 ? (
-                <div className="p-4 text-center text-xs text-[#64748b]">
+                <div className="p-4 text-center text-xs" style={{ color: T.textMuted }}>
                   No events yet. Geofence entries/exits and clock in/out will appear here.
                 </div>
               ) : (
@@ -964,21 +1096,28 @@ export function EmployeeTrackingView() {
                   const isEnter = ev.event === "enter" || ev.event === "clock_in";
                   const isExit = ev.event === "exit" || ev.event === "clock_out";
                   const Icon = isEnter ? LogIn : isExit ? LogOut : Activity;
-                  const color = isEnter ? "text-[#10b981]" : isExit ? "text-[#f59e0b]" : "text-[#3b82f6]";
+                  const color = isEnter ? T.neonGreen : isExit ? T.neonAmber : T.neonBlue;
                   return (
-                    <div key={ev.id} className="p-3 flex items-start gap-2.5">
-                      <div className={`mt-0.5 ${color}`}>
-                        <Icon className="h-3.5 w-3.5" />
+                    <div
+                      key={ev.id}
+                      className="p-3 flex items-start gap-2.5"
+                      style={{ borderBottom: `1px solid ${T.border}` }}
+                    >
+                      <div
+                        className="mt-0.5 p-1 rounded"
+                        style={{ backgroundColor: hexToRgba(color, 0.12), color, boxShadow: `0 0 8px ${hexToRgba(color, 0.3)}` }}
+                      >
+                        <Icon className="h-3 w-3" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-[11px] text-white">
+                        <div className="text-[11px]" style={{ color: T.textPrimary }}>
                           <span className="font-medium">{ev.user.name ?? ev.user.email}</span>{" "}
-                          <span className="text-[#64748b]">{ev.event.replace("_", " ")}</span>{" "}
+                          <span style={{ color: T.textMuted }}>{ev.event.replace("_", " ")}</span>{" "}
                           <span className="font-medium" style={{ color: ev.geofence.color }}>
                             {ev.geofence.name}
                           </span>
                         </div>
-                        <div className="text-[9px] text-[#64748b] font-mono mt-0.5">
+                        <div className="text-[9px] font-mono mt-0.5" style={{ color: T.textMuted }}>
                           {ev.lat.toFixed(4)}, {ev.lon.toFixed(4)} · {timeAgo(ev.createdAt)}
                         </div>
                       </div>
@@ -989,16 +1128,17 @@ export function EmployeeTrackingView() {
             </div>
           </ScrollArea>
 
-          {/* Open shifts summary */}
           {data && data.openEntries.length > 0 && (
-            <div className="p-3 border-t border-[#1e3a5f]/50 bg-[#0a0e1a]">
-              <div className="text-[10px] font-mono uppercase tracking-wider text-[#64748b] mb-2">Open Shifts ({data.openEntries.length})</div>
+            <div className="p-3" style={{ borderTop: `1px solid ${T.border}`, backgroundColor: T.bg0 }}>
+              <div className="text-[10px] font-mono uppercase tracking-wider mb-2" style={{ color: T.textMuted }}>
+                ◆ Open Shifts ({data.openEntries.length})
+              </div>
               <div className="space-y-1.5 max-h-32 overflow-y-auto">
                 {data.openEntries.map((e) => (
                   <div key={e.id} className="flex items-center gap-2 text-[11px]">
-                    <Clock className="h-3 w-3 text-[#14b8a6] shrink-0" />
-                    <span className="text-white truncate flex-1">{e.user.name}</span>
-                    <span className="text-[#64748b] font-mono">{timeAgo(e.clockInAt)}</span>
+                    <Clock className="h-3 w-3 shrink-0" style={{ color: T.neonBlue }} />
+                    <span className="truncate flex-1" style={{ color: T.textPrimary }}>{e.user.name}</span>
+                    <span className="font-mono" style={{ color: T.textMuted }}>{timeAgo(e.clockInAt)}</span>
                   </div>
                 ))}
               </div>
@@ -1007,73 +1147,92 @@ export function EmployeeTrackingView() {
         </aside>
       </div>
 
-      {/* BOTTOM: Geofence management + Timesheet (collapsible) */}
+      {/* BOTTOM: Geofence + Timesheet */}
       <BottomPanels
         geofences={data?.geofences ?? []}
         timeEntries={data?.openEntries ?? []}
         onDeleteGeofence={deleteGeofence}
         onToggleGeofence={toggleGeofenceActive}
         onEditGeofence={setEditGeofence}
-        onRefresh={fetchData}
       />
 
       {/* Pending geofence dialog */}
       <Dialog open={!!pendingGeofence} onOpenChange={(v) => { if (!v) { setPendingGeofence(null); setMapMode("view"); } }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" style={{ backgroundColor: T.bg1, border: `1px solid ${T.borderNeon}` }}>
           <DialogHeader>
-            <DialogTitle>Create Geofence</DialogTitle>
-            <DialogDescription>
+            <DialogTitle style={{ color: T.textPrimary }}>Create Geofence</DialogTitle>
+            <DialogDescription style={{ color: T.textSecondary }}>
               Center: {pendingGeofence?.lat.toFixed(6)}°N, {pendingGeofence && Math.abs(pendingGeofence.lon).toFixed(6)}°{pendingGeofence && pendingGeofence.lon >= 0 ? "E" : "W"}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Name *</Label>
-              <Input value={geofenceForm.name} onChange={(e) => setGeofenceForm({ ...geofenceForm, name: e.target.value })} placeholder="Main Office" />
+              <Label className="text-xs" style={{ color: T.textSecondary }}>Name *</Label>
+              <Input
+                value={geofenceForm.name}
+                onChange={(e) => setGeofenceForm({ ...geofenceForm, name: e.target.value })}
+                placeholder="Main Office"
+                style={{ backgroundColor: T.bg0, borderColor: T.border, color: T.textPrimary }}
+              />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Description</Label>
-              <Input value={geofenceForm.description} onChange={(e) => setGeofenceForm({ ...geofenceForm, description: e.target.value })} placeholder="Headquarters — clock-in zone" />
+              <Label className="text-xs" style={{ color: T.textSecondary }}>Description</Label>
+              <Input
+                value={geofenceForm.description}
+                onChange={(e) => setGeofenceForm({ ...geofenceForm, description: e.target.value })}
+                placeholder="Headquarters — clock-in zone"
+                style={{ backgroundColor: T.bg0, borderColor: T.border, color: T.textPrimary }}
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs">Radius (meters)</Label>
+                <Label className="text-xs" style={{ color: T.textSecondary }}>Radius (m)</Label>
                 <Input
                   type="number"
                   min={10}
                   max={5000}
                   value={geofenceForm.radiusMeters}
                   onChange={(e) => setGeofenceForm({ ...geofenceForm, radiusMeters: parseInt(e.target.value) || 100 })}
+                  style={{ backgroundColor: T.bg0, borderColor: T.border, color: T.textPrimary }}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Type</Label>
+                <Label className="text-xs" style={{ color: T.textSecondary }}>Type</Label>
                 <Select value={geofenceForm.type} onValueChange={(v) => setGeofenceForm({ ...geofenceForm, type: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
+                  <SelectTrigger style={{ backgroundColor: T.bg0, borderColor: T.border, color: T.textPrimary }}><SelectValue /></SelectTrigger>
+                  <SelectContent style={{ backgroundColor: T.bg1, borderColor: T.border }}>
                     {GEOFENCE_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Color</Label>
+              <Label className="text-xs" style={{ color: T.textSecondary }}>Color</Label>
               <div className="flex gap-2">
                 {GEOFENCE_COLORS.map((c) => (
                   <button
-                    key={c}
-                    onClick={() => setGeofenceForm({ ...geofenceForm, color: c })}
-                    className={`h-7 w-7 rounded-full border-2 cursor-pointer transition-transform ${geofenceForm.color === c ? "scale-110 border-white" : "border-transparent"}`}
-                    style={{ backgroundColor: c }}
+                    key={c.hex}
+                    onClick={() => setGeofenceForm({ ...geofenceForm, color: c.hex })}
+                    className="h-8 w-8 rounded-full border-2 cursor-pointer transition-transform"
+                    style={{
+                      backgroundColor: c.hex,
+                      borderColor: geofenceForm.color === c.hex ? T.textPrimary : "transparent",
+                      transform: geofenceForm.color === c.hex ? "scale(1.15)" : "scale(1)",
+                      boxShadow: geofenceForm.color === c.hex ? `0 0 12px ${c.hex}` : "none",
+                    }}
                   />
                 ))}
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => { setPendingGeofence(null); setMapMode("view"); }} className="cursor-pointer">Cancel</Button>
-            <Button onClick={saveGeofence} className="cursor-pointer bg-[#14b8a6] hover:bg-[#14b8a6]/90">
-              <Plus className="h-4 w-4 mr-1" /> Create Geofence
+            <Button variant="ghost" onClick={() => { setPendingGeofence(null); setMapMode("view"); }} className="cursor-pointer" style={{ color: T.textSecondary }}>Cancel</Button>
+            <Button
+              onClick={saveGeofence}
+              className="cursor-pointer"
+              style={{ backgroundColor: T.neonBlue, color: "#fff", boxShadow: `0 0 12px ${T.neonBlueGlow}` }}
+            >
+              <Plus className="h-4 w-4 mr-1" /> Create
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1081,31 +1240,36 @@ export function EmployeeTrackingView() {
 
       {/* Edit geofence dialog */}
       <Dialog open={!!editGeofence} onOpenChange={(v) => { if (!v) setEditGeofence(null); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" style={{ backgroundColor: T.bg1, border: `1px solid ${T.borderNeon}` }}>
           <DialogHeader>
-            <DialogTitle>Edit Geofence</DialogTitle>
-            <DialogDescription>{editGeofence?.name}</DialogDescription>
+            <DialogTitle style={{ color: T.textPrimary }}>Edit Geofence</DialogTitle>
+            <DialogDescription style={{ color: T.textSecondary }}>{editGeofence?.name}</DialogDescription>
           </DialogHeader>
           {editGeofence && (
             <div className="space-y-3 py-2">
               <div className="space-y-1.5">
-                <Label className="text-xs">Name</Label>
-                <Input value={editGeofence.name} onChange={(e) => setEditGeofence({ ...editGeofence, name: e.target.value })} />
+                <Label className="text-xs" style={{ color: T.textSecondary }}>Name</Label>
+                <Input
+                  value={editGeofence.name}
+                  onChange={(e) => setEditGeofence({ ...editGeofence, name: e.target.value })}
+                  style={{ backgroundColor: T.bg0, borderColor: T.border, color: T.textPrimary }}
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Radius (m)</Label>
+                  <Label className="text-xs" style={{ color: T.textSecondary }}>Radius (m)</Label>
                   <Input
                     type="number"
                     value={editGeofence.radiusMeters}
                     onChange={(e) => setEditGeofence({ ...editGeofence, radiusMeters: parseInt(e.target.value) || 100 })}
+                    style={{ backgroundColor: T.bg0, borderColor: T.border, color: T.textPrimary }}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Type</Label>
+                  <Label className="text-xs" style={{ color: T.textSecondary }}>Type</Label>
                   <Select value={editGeofence.type} onValueChange={(v) => setEditGeofence({ ...editGeofence, type: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
+                    <SelectTrigger style={{ backgroundColor: T.bg0, borderColor: T.border, color: T.textPrimary }}><SelectValue /></SelectTrigger>
+                    <SelectContent style={{ backgroundColor: T.bg1, borderColor: T.border }}>
                       {GEOFENCE_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -1114,7 +1278,7 @@ export function EmployeeTrackingView() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setEditGeofence(null)} className="cursor-pointer">Cancel</Button>
+            <Button variant="ghost" onClick={() => setEditGeofence(null)} className="cursor-pointer" style={{ color: T.textSecondary }}>Cancel</Button>
             <Button
               onClick={async () => {
                 if (!editGeofence) return;
@@ -1137,9 +1301,10 @@ export function EmployeeTrackingView() {
                   toast.error("Network error");
                 }
               }}
-              className="cursor-pointer bg-[#14b8a6] hover:bg-[#14b8a6]/90"
+              className="cursor-pointer"
+              style={{ backgroundColor: T.neonBlue, color: "#fff", boxShadow: `0 0 12px ${T.neonBlueGlow}` }}
             >
-              Save Changes
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1148,58 +1313,207 @@ export function EmployeeTrackingView() {
   );
 }
 
-// Bottom panels: geofence list + timesheet
+// ── Sub-components (themed) ───────────────────────────────────────────────
+
+function StatPill({ icon, value, label, color }: { icon: React.ReactNode; value: number | string; label: string; color: string }) {
+  return (
+    <div
+      className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono"
+      style={{
+        backgroundColor: hexToRgba(color, 0.1),
+        color,
+        border: `1px solid ${hexToRgba(color, 0.3)}`,
+      }}
+    >
+      {icon}
+      <span className="font-bold">{value}</span>
+      <span style={{ opacity: 0.7 }}>{label}</span>
+    </div>
+  );
+}
+
+function NeonBadge({ color, icon, children }: { color: string; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <span
+      className="inline-flex items-center text-[8px] px-1 py-0 h-3.5 rounded font-mono font-medium"
+      style={{
+        backgroundColor: hexToRgba(color, 0.12),
+        color,
+        border: `1px solid ${hexToRgba(color, 0.3)}`,
+      }}
+    >
+      {icon}{children}
+    </span>
+  );
+}
+
+function NeonActionButton({
+  color,
+  onClick,
+  title,
+  children,
+}: {
+  color: string;
+  onClick: () => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className="flex flex-col items-center justify-center gap-0.5 h-12 rounded-lg cursor-pointer transition-all hover:scale-105"
+      style={{
+        backgroundColor: hexToRgba(color, 0.08),
+        border: `1px solid ${hexToRgba(color, 0.4)}`,
+        color,
+        boxShadow: `0 0 8px ${hexToRgba(color, 0.2)}`,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = hexToRgba(color, 0.15);
+        e.currentTarget.style.boxShadow = `0 0 16px ${hexToRgba(color, 0.4)}`;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = hexToRgba(color, 0.08);
+        e.currentTarget.style.boxShadow = `0 0 8px ${hexToRgba(color, 0.2)}`;
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function NeonCTAButton({ color, onClick, children }: { color: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1 px-3 h-7 rounded-md text-[11px] font-semibold cursor-pointer transition-all"
+      style={{
+        backgroundColor: hexToRgba(color, 0.12),
+        color,
+        border: `1px solid ${hexToRgba(color, 0.5)}`,
+        boxShadow: `0 0 12px ${hexToRgba(color, 0.3)}`,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function NeonIconButton({ color, onClick, title, children }: { color: string; onClick: () => void; title: string; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className="flex items-center justify-center h-7 w-7 rounded-md cursor-pointer transition-all"
+      style={{
+        backgroundColor: "rgba(13, 17, 23, 0.85)",
+        border: `1px solid ${hexToRgba(color, 0.4)}`,
+        color,
+        backdropFilter: "blur(8px)",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = hexToRgba(color, 0.15);
+        e.currentTarget.style.boxShadow = `0 0 12px ${hexToRgba(color, 0.5)}`;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = "rgba(13, 17, 23, 0.85)";
+        e.currentTarget.style.boxShadow = "none";
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function LegendItem({ color, label, filled = true }: { color: string; label: string; filled?: boolean }) {
+  return (
+    <div
+      className="flex items-center gap-1.5 px-2 py-1 rounded"
+      style={{
+        backgroundColor: "rgba(13, 17, 23, 0.85)",
+        border: `1px solid ${T.border}`,
+        backdropFilter: "blur(8px)",
+      }}
+    >
+      <div
+        className="h-2 w-2 rounded-full"
+        style={{
+          backgroundColor: filled ? color : "transparent",
+          border: filled ? "none" : `1.5px solid ${color}`,
+          boxShadow: filled ? `0 0 6px ${color}` : "none",
+        }}
+      />
+      <span className="text-[9px]" style={{ color: T.textSecondary }}>{label}</span>
+    </div>
+  );
+}
+
+// Bottom panels
 function BottomPanels({
   geofences,
   timeEntries,
   onDeleteGeofence,
   onToggleGeofence,
   onEditGeofence,
-  onRefresh,
 }: {
   geofences: Geofence[];
   timeEntries: TimeEntry[];
   onDeleteGeofence: (id: string, name: string) => void;
   onToggleGeofence: (g: Geofence) => void;
   onEditGeofence: (g: Geofence) => void;
-  onRefresh: () => void;
 }) {
   const [tab, setTab] = useState<"geofences" | "timesheet">("geofences");
   const [collapsed, setCollapsed] = useState(false);
 
   if (collapsed) {
     return (
-      <div className="border-t border-[#1e3a5f]/50 bg-[#0a0e1a]">
+      <div style={{ borderTop: `1px solid ${T.border}`, backgroundColor: T.bg0 }}>
         <button
           onClick={() => setCollapsed(false)}
-          className="w-full px-4 py-1.5 text-[10px] font-mono uppercase tracking-wider text-[#64748b] hover:text-white cursor-pointer flex items-center justify-center gap-2"
+          className="w-full px-4 py-1.5 text-[10px] font-mono uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2"
+          style={{ color: T.textMuted }}
         >
-          <Layers className="h-3 w-3" /> Expand Geofences & Timesheet
+          <Layers className="h-3 w-3" /> Expand Geofences & Shifts
         </button>
       </div>
     );
   }
 
   return (
-    <div className="border-t border-[#1e3a5f]/50 bg-[#0a0e1a] h-44 shrink-0 flex flex-col">
-      <div className="flex items-center justify-between px-4 py-1.5 border-b border-[#1e3a5f]/50">
+    <div
+      className="h-44 shrink-0 flex flex-col"
+      style={{ borderTop: `1px solid ${T.border}`, backgroundColor: T.bg0 }}
+    >
+      <div className="flex items-center justify-between px-4 py-1.5" style={{ borderBottom: `1px solid ${T.border}` }}>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setTab("geofences")}
-            className={`px-3 py-1 text-[11px] font-medium rounded cursor-pointer ${tab === "geofences" ? "bg-[#14b8a6]/15 text-[#14b8a6] border border-[#14b8a6]/30" : "text-[#64748b] hover:text-white border border-transparent"}`}
+            className="px-3 py-1 text-[11px] font-medium rounded cursor-pointer flex items-center gap-1"
+            style={{
+              backgroundColor: tab === "geofences" ? hexToRgba(T.neonBlue, 0.12) : "transparent",
+              color: tab === "geofences" ? T.neonBlue : T.textMuted,
+              border: tab === "geofences" ? `1px solid ${hexToRgba(T.neonBlue, 0.4)}` : "1px solid transparent",
+            }}
           >
-            <MapPin className="h-3 w-3 inline mr-1" /> Geofences ({geofences.length})
+            <MapPin className="h-3 w-3" /> Geofences ({geofences.length})
           </button>
           <button
             onClick={() => setTab("timesheet")}
-            className={`px-3 py-1 text-[11px] font-medium rounded cursor-pointer ${tab === "timesheet" ? "bg-[#14b8a6]/15 text-[#14b8a6] border border-[#14b8a6]/30" : "text-[#64748b] hover:text-white border border-transparent"}`}
+            className="px-3 py-1 text-[11px] font-medium rounded cursor-pointer flex items-center gap-1"
+            style={{
+              backgroundColor: tab === "timesheet" ? hexToRgba(T.neonBlue, 0.12) : "transparent",
+              color: tab === "timesheet" ? T.neonBlue : T.textMuted,
+              border: tab === "timesheet" ? `1px solid ${hexToRgba(T.neonBlue, 0.4)}` : "1px solid transparent",
+            }}
           >
-            <Calendar className="h-3 w-3 inline mr-1" /> Open Shifts ({timeEntries.length})
+            <Calendar className="h-3 w-3" /> Open Shifts ({timeEntries.length})
           </button>
         </div>
         <button
           onClick={() => setCollapsed(true)}
-          className="text-[10px] text-[#64748b] hover:text-white cursor-pointer"
+          className="text-[10px] cursor-pointer"
+          style={{ color: T.textMuted }}
         >
           Collapse ▼
         </button>
@@ -1208,13 +1522,13 @@ function BottomPanels({
       <div className="flex-1 overflow-auto">
         {tab === "geofences" ? (
           geofences.length === 0 ? (
-            <div className="p-4 text-center text-[11px] text-[#64748b]">
-              No geofences yet. Click "Draw Geofence" on the map to create one.
+            <div className="p-4 text-center text-[11px]" style={{ color: T.textMuted }}>
+              No geofences yet. Click &quot;Draw Geofence&quot; on the map to create one.
             </div>
           ) : (
             <table className="w-full text-[11px]">
-              <thead className="sticky top-0 bg-[#0a0e1a] border-b border-[#1e3a5f]/50">
-                <tr className="text-left text-[#64748b]">
+              <thead className="sticky top-0" style={{ backgroundColor: T.bg0, borderBottom: `1px solid ${T.border}` }}>
+                <tr className="text-left" style={{ color: T.textMuted }}>
                   <th className="px-3 py-1.5 font-medium">Name</th>
                   <th className="px-3 py-1.5 font-medium">Type</th>
                   <th className="px-3 py-1.5 font-medium">Center</th>
@@ -1224,47 +1538,37 @@ function BottomPanels({
                   <th className="px-3 py-1.5 font-medium text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#1e3a5f]/30">
+              <tbody>
                 {geofences.map((g) => (
-                  <tr key={g.id} className="hover:bg-[#1e3a5f]/20">
+                  <tr key={g.id} style={{ borderBottom: `1px solid ${T.border}` }}>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
-                        <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: g.color }} />
-                        <span className="text-white font-medium">{g.name}</span>
+                        <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: g.color, boxShadow: `0 0 6px ${g.color}` }} />
+                        <span className="font-medium" style={{ color: T.textPrimary }}>{g.name}</span>
                       </div>
-                      {g.description && <div className="text-[9px] text-[#64748b]">{g.description}</div>}
+                      {g.description && <div className="text-[9px]" style={{ color: T.textMuted }}>{g.description}</div>}
                     </td>
-                    <td className="px-3 py-2 capitalize text-[#94a3b8]">{g.type.replace("_", " ")}</td>
-                    <td className="px-3 py-2 font-mono text-[10px] text-[#94a3b8]">
+                    <td className="px-3 py-2 capitalize" style={{ color: T.textSecondary }}>{g.type.replace("_", " ")}</td>
+                    <td className="px-3 py-2 font-mono text-[10px]" style={{ color: T.textSecondary }}>
                       {g.lat.toFixed(4)}, {g.lon.toFixed(4)}
                     </td>
-                    <td className="px-3 py-2 text-[#94a3b8]">{g.radiusMeters}m</td>
-                    <td className="px-3 py-2 text-[#94a3b8]">{g._count?.events ?? 0}</td>
+                    <td className="px-3 py-2" style={{ color: T.textSecondary }}>{g.radiusMeters}m</td>
+                    <td className="px-3 py-2" style={{ color: T.textSecondary }}>{g._count?.events ?? 0}</td>
                     <td className="px-3 py-2">
                       {g.isActive ? (
-                        <Badge className="text-[9px] bg-[#10b981]/15 text-[#10b981] border-[#10b981]/30">ACTIVE</Badge>
+                        <NeonBadge color={T.neonGreen}>ACTIVE</NeonBadge>
                       ) : (
-                        <Badge className="text-[9px] bg-[#64748b]/15 text-[#94a3b8] border-[#64748b]/30">PAUSED</Badge>
+                        <NeonBadge color={T.textMuted}>PAUSED</NeonBadge>
                       )}
                     </td>
                     <td className="px-3 py-2 text-right">
-                      <button
-                        onClick={() => onToggleGeofence(g)}
-                        className="text-[#64748b] hover:text-[#14b8a6] cursor-pointer p-1"
-                        title={g.isActive ? "Pause" : "Activate"}
-                      >
-                        {g.isActive ? <ShieldCheck className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3 opacity-50" />}
+                      <button onClick={() => onToggleGeofence(g)} className="cursor-pointer p-1" style={{ color: T.textMuted }} title={g.isActive ? "Pause" : "Activate"}>
+                        <ShieldCheck className="h-3 w-3" style={{ opacity: g.isActive ? 1 : 0.4 }} />
                       </button>
-                      <button
-                        onClick={() => onEditGeofence(g)}
-                        className="text-[#64748b] hover:text-white cursor-pointer p-1"
-                      >
+                      <button onClick={() => onEditGeofence(g)} className="cursor-pointer p-1" style={{ color: T.textMuted }}>
                         <Pencil className="h-3 w-3" />
                       </button>
-                      <button
-                        onClick={() => onDeleteGeofence(g.id, g.name)}
-                        className="text-[#64748b] hover:text-[#ef4444] cursor-pointer p-1"
-                      >
+                      <button onClick={() => onDeleteGeofence(g.id, g.name)} className="cursor-pointer p-1" style={{ color: T.textMuted }}>
                         <Trash2 className="h-3 w-3" />
                       </button>
                     </td>
@@ -1275,13 +1579,13 @@ function BottomPanels({
           )
         ) : (
           timeEntries.length === 0 ? (
-            <div className="p-4 text-center text-[11px] text-[#64748b]">
-              No open shifts. Use "Clock In" on a selected employee to start a shift.
+            <div className="p-4 text-center text-[11px]" style={{ color: T.textMuted }}>
+              No open shifts. Use &quot;Clock In&quot; on a selected employee to start a shift.
             </div>
           ) : (
             <table className="w-full text-[11px]">
-              <thead className="sticky top-0 bg-[#0a0e1a] border-b border-[#1e3a5f]/50">
-                <tr className="text-left text-[#64748b]">
+              <thead className="sticky top-0" style={{ backgroundColor: T.bg0, borderBottom: `1px solid ${T.border}` }}>
+                <tr className="text-left" style={{ color: T.textMuted }}>
                   <th className="px-3 py-1.5 font-medium">Employee</th>
                   <th className="px-3 py-1.5 font-medium">Clock In</th>
                   <th className="px-3 py-1.5 font-medium">Location</th>
@@ -1290,18 +1594,18 @@ function BottomPanels({
                   <th className="px-3 py-1.5 font-medium">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#1e3a5f]/30">
+              <tbody>
                 {timeEntries.map((e) => (
-                  <tr key={e.id} className="hover:bg-[#1e3a5f]/20">
-                    <td className="px-3 py-2 text-white font-medium">{e.user.name}</td>
-                    <td className="px-3 py-2 text-[#94a3b8] font-mono">{new Date(e.clockInAt).toLocaleTimeString()}</td>
-                    <td className="px-3 py-2 font-mono text-[10px] text-[#94a3b8]">
+                  <tr key={e.id} style={{ borderBottom: `1px solid ${T.border}` }}>
+                    <td className="px-3 py-2 font-medium" style={{ color: T.textPrimary }}>{e.user.name}</td>
+                    <td className="px-3 py-2 font-mono" style={{ color: T.textSecondary }}>{new Date(e.clockInAt).toLocaleTimeString()}</td>
+                    <td className="px-3 py-2 font-mono text-[10px]" style={{ color: T.textSecondary }}>
                       {e.clockInLat?.toFixed(4) ?? "—"}, {e.clockInLon?.toFixed(4) ?? "—"}
                     </td>
-                    <td className="px-3 py-2 text-[#14b8a6]">{e.geofence?.name ?? "—"}</td>
-                    <td className="px-3 py-2 text-[#f59e0b] font-mono">{timeAgo(e.clockInAt)}</td>
+                    <td className="px-3 py-2" style={{ color: T.neonBlue }}>{e.geofence?.name ?? "—"}</td>
+                    <td className="px-3 py-2 font-mono" style={{ color: T.neonAmber }}>{timeAgo(e.clockInAt)}</td>
                     <td className="px-3 py-2">
-                      <Badge className="text-[9px] bg-[#14b8a6]/15 text-[#14b8a6] border-[#14b8a6]/30">OPEN</Badge>
+                      <NeonBadge color={T.neonBlue}>OPEN</NeonBadge>
                     </td>
                   </tr>
                 ))}
@@ -1314,10 +1618,7 @@ function BottomPanels({
   );
 }
 
-// ============================================================================
-// Utilities
-// ============================================================================
-
+// ── Utilities ────────────────────────────────────────────────────────────
 function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -1325,10 +1626,7 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-// Approximate meters → pixels at given latitude for a world map of width w
 function metersToPixels(meters: number, lat: number, mapWidth: number): number {
-  // 1 degree of longitude ≈ 111320 * cos(lat) meters
-  // Map width covers 360 degrees
   const metersPerDegree = 111320 * Math.cos((lat * Math.PI) / 180);
   const degrees = meters / metersPerDegree;
   return (degrees / 360) * mapWidth;
