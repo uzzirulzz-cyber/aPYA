@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { cn, formatDateTime } from "@/lib/utils";
 import {
   ShieldCheck, Users, Building2, KeyRound, Lock, Plus, Pencil,
-  Trash2, Copy, Check, Phone, Mail, User
+  Trash2, Copy, Check, Phone, Mail, User, Loader2, ExternalLink
 } from "lucide-react";
 
 const roleColors: Record<string, string> = {
@@ -321,7 +321,9 @@ export function AdminView() {
                 <div className="text-[10px] font-mono uppercase tracking-wider text-[#64748b] mb-1">
                   Invitation Link
                 </div>
-                <div className="text-xs font-mono break-all">{inviteResult.link}</div>
+                <div className="text-xs font-mono break-all text-[#f1f5f9]">
+                  {typeof window !== "undefined" ? `${window.location.origin}${inviteResult.link}` : inviteResult.link}
+                </div>
               </div>
               <div className="rounded-md bg-[#1e293b]/60 p-3">
                 <div className="text-[10px] font-mono uppercase tracking-wider text-[#64748b] mb-1">
@@ -338,13 +340,30 @@ export function AdminView() {
                 <Button variant="ghost" onClick={() => setAddOpen(false)} className="cursor-pointer">Cancel</Button>
                 <Button onClick={handleGenerateInvite} disabled={generating} className="cursor-pointer">
                   {generating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Generate Link
+                  {generating ? "Generating..." : "Generate Link"}
                 </Button>
               </>
             ) : (
               <>
                 <Button variant="ghost" onClick={() => { setInviteResult(null); setAddOpen(false); }} className="cursor-pointer">Close</Button>
-                <Button onClick={() => copyLink(`${window.location.origin}${inviteResult.link}`)} className="cursor-pointer">
+                <a
+                  href={inviteResult.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium h-9 px-3 border border-input bg-transparent hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                >
+                  <ExternalLink className="h-4 w-4" /> Open Link
+                </a>
+                <Button
+                  onClick={() => {
+                    const fullUrl = `${window.location.origin}${inviteResult.link}`;
+                    navigator.clipboard.writeText(fullUrl);
+                    setCopied(true);
+                    toast.success("Link copied to clipboard");
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="cursor-pointer"
+                >
                   {copied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
                   {copied ? "Copied" : "Copy Link"}
                 </Button>

@@ -35,12 +35,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "A user with this email already exists" }, { status: 400 });
     }
 
+    if (!admin.organizationId) {
+      return NextResponse.json({ error: "You are not part of an organization" }, { status: 403 });
+    }
+
     const org = await withRetry(() =>
-      db.organization.findFirst({ where: { activatedById: admin.id } })
+      db.organization.findUnique({ where: { id: admin.organizationId! } })
     );
 
     if (!org) {
       return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+
+    // Enforce org seat limit
+    const currentMembers = await withRetry(() =>
+      db.user.count({ where: { organizationId: org.id } })
+    );
+    if (currentMembers >= org.maxUsers) {
+      return NextResponse.json(
+        { error: `Seat limit reached (${currentMembers}/${org.maxUsers}). Upgrade your license to add more members.` },
+        { status: 403 }
+      );
     }
 
     const token = createEncodedInvite({
