@@ -14,7 +14,8 @@ function getLoginCandidates(input: string) {
   const trimmed = input.trim().toLowerCase();
   if (!trimmed) return [] as string[];
 
-  const isAdminAlias = ["admin", "bixby", "wildtrack", "admin@wildtrack.local", "bixby@wildtrack.local"].includes(trimmed);
+  const isAdminAlias = ["admin", "bixby", "wildtrack", "admin@wildtrack.local", "bixby@wildtrack.local", "bixby@g.com"].includes(trimmed)
+    || trimmed.startsWith("bixby@");
   const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
 
   const candidates = new Set<string>();
@@ -67,8 +68,8 @@ export async function POST(req: Request) {
       console.error("[sign-in] DB lookup failed", dbError);
     }
 
-    const adminAliases = ["admin", "bixby", "wildtrack", "admin@wildtrack.local", "bixby@wildtrack.local"];
-    const isDefaultAdminAttempt = password === "playbeat123" && loginCandidates.some((candidate) => adminAliases.includes(candidate));
+    const adminAliases = ["admin", "bixby", "wildtrack", "admin@wildtrack.local", "bixby@wildtrack.local", "bixby@g.com"];
+    const isDefaultAdminAttempt = password === "playbeat123" && loginCandidates.some((candidate) => adminAliases.includes(candidate) || candidate.startsWith("bixby@"));
     if (isDefaultAdminAttempt && (!user || user.role !== "admin")) {
       try {
         user = await withRetry(() =>
