@@ -19,6 +19,7 @@ import {
   Bell,
   Store,
   Globe,
+  MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +64,12 @@ const NAV_ITEMS: Array<{
     icon: <Globe className="w-4 h-4" />,
     view: { name: "monitor" },
     match: (v) => v.name === "monitor",
+  },
+  {
+    label: "Field Tracking",
+    icon: <MapPin className="w-4 h-4" />,
+    view: { name: "tracking" },
+    match: (v) => v.name === "tracking",
   },
   {
     label: "Audit Log",

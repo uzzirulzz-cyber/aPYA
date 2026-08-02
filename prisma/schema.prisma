@@ -33,6 +33,11 @@ model User {
   deliveriesCreated Delivery[]    @relation("DeliveryCreatedBy")
   auditLogs         AuditLog[]    @relation("AuditLogByUser")
   annotations       Annotation[]  @relation("AnnotationByUser")
+  // Employee GPS tracking back-relations
+  geofencesCreated  Geofence[]    @relation("GeofenceCreatedBy")
+  locationPings     LocationPing[] @relation("LocationPingByUser")
+  geofenceEvents    GeofenceEvent[] @relation("GeofenceEventByUser")
+  timeEntries       TimeEntry[]   @relation("TimeEntryByUser")
 }
 
 model Organization {
@@ -52,6 +57,11 @@ model Organization {
   cases    Case[]
   deliveries Delivery[]
   auditLogs AuditLog[]
+  // Employee GPS tracking back-relations
+  geofences    Geofence[]
+  locationPings LocationPing[]
+  geofenceEvents GeofenceEvent[]
+  timeEntries  TimeEntry[]
 }
 
 model Case {
@@ -267,4 +277,118 @@ model Annotation {
   updatedAt       DateTime  @updatedAt
 
   @@index([caseId])
+}
+
+// ============================================================================
+// Employee GPS Tracking (FieldServicely-style integration)
+// ============================================================================
+
+model Geofence {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  name            String
+  description     String?
+  // Center point
+  lat             Float
+  lon             Float
+  // Radius in meters (circular geofence)
+  radiusMeters    Int      @default(100)
+  color           String   @default("#14b8a6")
+  // Geofence type: jobsite | office | restricted | client_site
+  type            String   @default("jobsite")
+  // Schedule (optional): only enforce during these hours
+  activeFrom      String?  // "HH:mm" 24h format
+  activeTo        String?  // "HH:mm" 24h format
+  activeDays      String   @default("[1,2,3,4,5]") // JSON: day-of-week array (0=Sun)
+  isActive        Boolean  @default(true)
+  createdById     String
+  createdBy       User     @relation("GeofenceCreatedBy", fields: [createdById], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  events          GeofenceEvent[]
+  timeEntries     TimeEntry[]
+
+  @@index([organizationId])
+  @@index([isActive])
+}
+
+model LocationPing {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  userId          String
+  user            User     @relation("LocationPingByUser", fields: [userId], references: [id])
+  lat             Float
+  lon             Float
+  accuracy        Float?
+  speed           Float?   // m/s
+  heading         Float?   // degrees 0-359
+  altitude        Float?
+  batteryPercent  Int?
+  // Source: mobile_app | auto_capture | manual
+  source          String   @default("mobile_app")
+  // Whether this ping was inside any geofence at capture time
+  insideGeofenceIds String  @default("[]") // JSON array of geofence IDs
+  createdAt       DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model GeofenceEvent {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  geofenceId      String
+  geofence        Geofence @relation(fields: [geofenceId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User     @relation("GeofenceEventByUser", fields: [userId], references: [id])
+  // event: enter | exit | dwell | clock_in | clock_out
+  event           String
+  lat             Float
+  lon             Float
+  // Optional photo attachment (selfie check-in URL)
+  photoUrl        String?
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([geofenceId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model TimeEntry {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  userId          String
+  user            User     @relation("TimeEntryByUser", fields: [userId], references: [id])
+  geofenceId      String?
+  geofence        Geofence? @relation(fields: [geofenceId], references: [id])
+  // Clock in
+  clockInAt       DateTime
+  clockInLat      Float?
+  clockInLon      Float?
+  clockInPhotoUrl String?
+  // Clock out
+  clockOutAt      DateTime?
+  clockOutLat     Float?
+  clockOutLon     Float?
+  clockOutPhotoUrl String?
+  // Computed duration in seconds (denormalized for fast queries)
+  durationSec     Int?
+  // status: open | closed | approved | disputed
+  status          String   @default("open")
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([status])
+  @@index([clockInAt])
 }
