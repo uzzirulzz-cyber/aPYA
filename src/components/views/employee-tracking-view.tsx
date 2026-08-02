@@ -991,6 +991,36 @@ export function EmployeeTrackingView() {
                   isSelected,
                   isPulsing: true,
                   battery: ping.batteryPercent ?? undefined,
+                  popupActions: [
+                    {
+                      label: isSelected ? "Deselect" : "Select",
+                      onClick: () => setSelectedMemberId(isSelected ? null : m.id),
+                      color: isSelected ? T.neonAmber : T.neonBlue,
+                    },
+                    {
+                      label: "Copy GPS",
+                      onClick: () => {
+                        navigator.clipboard.writeText(`${ping.lat.toFixed(6)},${ping.lon.toFixed(6)}`);
+                        toast.success("Coordinates copied");
+                      },
+                      color: T.neonCyan,
+                    },
+                    {
+                      label: showRouteFor === m.id ? "Hide Route" : "Route",
+                      onClick: () => setShowRouteFor(showRouteFor === m.id ? null : m.id),
+                      color: T.neonAmber,
+                    },
+                    {
+                      label: "Clock In",
+                      onClick: () => manualClock(m.id, "clock_in"),
+                      color: T.neonGreen,
+                    },
+                    {
+                      label: "Clock Out",
+                      onClick: () => manualClock(m.id, "clock_out"),
+                      color: T.neonPink,
+                    },
+                  ],
                 };
               })
               .filter(Boolean) as any[]}
