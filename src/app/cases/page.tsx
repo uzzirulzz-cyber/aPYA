@@ -11,7 +11,7 @@ export default function RedirectPage() {
   useEffect(() => {
     if (!isLoading) {
       if (!session?.user || !session.organization) {
-        router.push("/");
+        router.push("/0000000000001admin");
       } else {
         router.push("/admin");
       }

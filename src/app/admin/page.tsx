@@ -21,7 +21,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!isLoading && (!session?.user || !session.organization)) {
-      router.push("/");
+      router.push("/0000000000001admin");
     }
   }, [isLoading, session, router]);
 
