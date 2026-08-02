@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { db, withRetry } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { createEncodedInvite } from "@/lib/invite-token";
+import { generateSarCode } from "@/lib/sar-code";
+import { writeAuditLog } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +60,7 @@ export async function POST(req: Request) {
       );
     }
 
+    // Generate the long HMAC token (backwards compat)
     const token = createEncodedInvite({
       orgId: org.id,
       email: email.toLowerCase(),
@@ -66,9 +69,50 @@ export async function POST(req: Request) {
       role,
     });
 
+    // Generate a unique 12-char SAR code — retry on rare collision
+    let sarCode = generateSarCode();
+    let attempts = 0;
+    while (attempts < 5) {
+      const existingCode = await withRetry(() => db.inviteCode.findUnique({ where: { code: sarCode } }));
+      if (!existingCode) break;
+      sarCode = generateSarCode();
+      attempts++;
+    }
+
+    // Persist the SAR code → payload mapping
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    await withRetry(() =>
+      db.inviteCode.create({
+        data: {
+          organizationId: org.id,
+          code: sarCode,
+          email: email.toLowerCase(),
+          name,
+          phone: phone ?? null,
+          role,
+          createdById: admin.id,
+          expiresAt,
+        },
+      })
+    );
+
+    await writeAuditLog({
+      userId: admin.id,
+      organizationId: org.id,
+      action: "invite_code_created",
+      resourceType: "invite_code",
+      resourceId: sarCode,
+      details: `Created SAR invite code ${sarCode} for ${name} <${email}>`,
+    }).catch(() => {});
+
     return NextResponse.json({
       token,
       link: `/activate?token=${encodeURIComponent(token)}`,
+      // NEW: 12-char SAR code + shareable link
+      sarCode,
+      sarLink: `/activate?sar=${sarCode}`,
+      fullSarLink: `${typeof req.headers.get("origin") === "string" ? req.headers.get("origin") : ""}/activate?sar=${sarCode}`,
+      expiresAt: expiresAt.toISOString(),
       invitee: { name, email, phone, role },
     });
   } catch (err) {
@@ -78,4 +122,34 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
+}
+
+// GET /api/invite — list all SAR codes for the org (admin only)
+export async function GET() {
+  const admin = await requireUser();
+  if (admin.role !== "admin") {
+    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  }
+  if (!admin.organizationId) {
+    return NextResponse.json({ error: "No organization" }, { status: 403 });
+  }
+  const codes = await withRetry(() =>
+    db.inviteCode.findMany({
+      where: { organizationId: admin.organizationId! },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      include: {
+        createdBy: { select: { id: true, name: true, email: true } },
+        usedBy: { select: { id: true, name: true, email: true } },
+      },
+    })
+  );
+  return NextResponse.json(
+    codes.map((c) => ({
+      ...c,
+      createdAt: c.createdAt.toISOString(),
+      expiresAt: c.expiresAt.toISOString(),
+      usedAt: c.usedAt?.toISOString() ?? null,
+    }))
+  );
 }

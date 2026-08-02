@@ -358,23 +358,74 @@ export function AdminView() {
                 <Check className="h-8 w-8 text-green-500 mx-auto mb-2" />
                 <div className="text-sm font-medium text-[#f1f5f9] text-green-500">Invitation Ready</div>
                 <div className="text-xs text-[#64748b] mt-1">
-                  Share this link with {inviteResult.invitee.name}
+                  Share this code with {inviteResult.invitee.name}
                 </div>
               </div>
-              <div className="rounded-md bg-[#1e293b]/60 p-3">
-                <div className="text-[10px] font-mono uppercase tracking-wider text-[#64748b] mb-1">
-                  Invitation Link
+
+              {/* SAR CODE — featured prominently at the top */}
+              {inviteResult.sarCode && (
+                <div
+                  className="rounded-lg p-4 text-center"
+                  style={{
+                    backgroundColor: "rgba(59, 130, 246, 0.08)",
+                    border: "1px solid rgba(59, 130, 246, 0.4)",
+                    boxShadow: "0 0 16px rgba(59, 130, 246, 0.2)",
+                  }}
+                >
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-[#64748b] mb-2">
+                    ◆ 12-Character SAR Invite Code ◆
+                  </div>
+                  <div
+                    className="text-2xl font-bold font-mono tracking-[0.15em] text-[#3b82f6] mb-2"
+                    style={{ textShadow: "0 0 12px rgba(59, 130, 246, 0.6)" }}
+                  >
+                    {inviteResult.sarCode}
+                  </div>
+                  <div className="text-[10px] text-[#64748b]">
+                    Expires {new Date(inviteResult.expiresAt).toLocaleDateString()} · 12 chars · shareable via SMS / chat
+                  </div>
                 </div>
-                <div className="text-xs font-mono break-all text-[#f1f5f9]">
+              )}
+
+              {/* SAR shareable link */}
+              {inviteResult.sarCode && (
+                <div className="rounded-md bg-[#1e293b]/60 p-3">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-[#64748b] mb-1 flex items-center justify-between">
+                    <span>SAR Invite Link</span>
+                    <button
+                      onClick={() => {
+                        const url = `${window.location.origin}/activate?sar=${inviteResult.sarCode}`;
+                        navigator.clipboard.writeText(url);
+                        toast.success("SAR link copied");
+                      }}
+                      className="text-[#3b82f6] hover:text-[#60a5fa] cursor-pointer"
+                    >
+                      <Copy className="h-3 w-3 inline" /> Copy
+                    </button>
+                  </div>
+                  <div className="text-xs font-mono break-all text-[#f1f5f9]">
+                    {typeof window !== "undefined"
+                      ? `${window.location.origin}/activate?sar=${inviteResult.sarCode}`
+                      : `/activate?sar=${inviteResult.sarCode}`}
+                  </div>
+                </div>
+              )}
+
+              {/* Long link (collapsible / secondary) */}
+              <details className="rounded-md bg-[#1e293b]/60 p-3">
+                <summary className="text-[10px] font-mono uppercase tracking-wider text-[#64748b] cursor-pointer select-none">
+                  Long invite link (advanced)
+                </summary>
+                <div className="mt-2 text-xs font-mono break-all text-[#f1f5f9]">
                   {typeof window !== "undefined" ? `${window.location.origin}${inviteResult.link}` : inviteResult.link}
                 </div>
-              </div>
-              <div className="rounded-md bg-[#1e293b]/60 p-3">
-                <div className="text-[10px] font-mono uppercase tracking-wider text-[#64748b] mb-1">
-                  Encoded Token
+                <div className="mt-2">
+                  <div className="text-[9px] font-mono uppercase tracking-wider text-[#64748b] mb-1">
+                    Encoded Token
+                  </div>
+                  <div className="text-[10px] font-mono break-all text-[#64748b]">{inviteResult.token}</div>
                 </div>
-                <div className="text-[10px] font-mono break-all text-[#64748b]">{inviteResult.token}</div>
-              </div>
+              </details>
             </div>
           )}
 
@@ -384,33 +435,48 @@ export function AdminView() {
                 <Button variant="ghost" onClick={() => setAddOpen(false)} className="cursor-pointer">Cancel</Button>
                 <Button onClick={handleGenerateInvite} disabled={generating} className="cursor-pointer">
                   {generating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  {generating ? "Generating..." : "Generate Link"}
+                  {generating ? "Generating..." : "Generate Code"}
                 </Button>
               </>
             ) : (
               <>
                 <Button variant="ghost" onClick={() => { setInviteResult(null); setAddOpen(false); }} className="cursor-pointer">Close</Button>
                 <a
-                  href={inviteResult.link}
+                  href={inviteResult.sarCode ? `/activate?sar=${inviteResult.sarCode}` : inviteResult.link}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium h-9 px-3 border border-input bg-transparent hover:bg-accent hover:text-accent-foreground cursor-pointer"
                 >
-                  <ExternalLink className="h-4 w-4" /> Open Link
+                  <ExternalLink className="h-4 w-4" /> Open
                 </a>
-                <Button
-                  onClick={() => {
-                    const fullUrl = `${window.location.origin}${inviteResult.link}`;
-                    navigator.clipboard.writeText(fullUrl);
-                    setCopied(true);
-                    toast.success("Link copied to clipboard");
-                    setTimeout(() => setCopied(false), 2000);
-                  }}
-                  className="cursor-pointer"
-                >
-                  {copied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
-                  {copied ? "Copied" : "Copy Link"}
-                </Button>
+                {inviteResult.sarCode ? (
+                  <Button
+                    onClick={() => {
+                      navigator.clipboard.writeText(inviteResult.sarCode);
+                      setCopied(true);
+                      toast.success("SAR code copied to clipboard");
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                    className="cursor-pointer bg-[#3b82f6] hover:bg-[#2563eb] text-white"
+                  >
+                    {copied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+                    {copied ? "Copied!" : "Copy SAR Code"}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => {
+                      const fullUrl = `${window.location.origin}${inviteResult.link}`;
+                      navigator.clipboard.writeText(fullUrl);
+                      setCopied(true);
+                      toast.success("Link copied to clipboard");
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                    className="cursor-pointer"
+                  >
+                    {copied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+                    {copied ? "Copied" : "Copy Link"}
+                  </Button>
+                )}
               </>
             )}
           </DialogFooter>

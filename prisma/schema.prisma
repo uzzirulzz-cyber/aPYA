@@ -38,6 +38,9 @@ model User {
   locationPings     LocationPing[] @relation("LocationPingByUser")
   geofenceEvents    GeofenceEvent[] @relation("GeofenceEventByUser")
   timeEntries       TimeEntry[]   @relation("TimeEntryByUser")
+  // Invite codes
+  inviteCodesCreated InviteCode[] @relation("InviteCodeCreatedBy")
+  inviteCodesRedeemed InviteCode[] @relation("InviteCodeUsedBy")
 }
 
 model Organization {
@@ -62,6 +65,8 @@ model Organization {
   locationPings LocationPing[]
   geofenceEvents GeofenceEvent[]
   timeEntries  TimeEntry[]
+  // Invite codes
+  inviteCodes  InviteCode[]
 }
 
 model Case {
@@ -391,4 +396,34 @@ model TimeEntry {
   @@index([userId])
   @@index([status])
   @@index([clockInAt])
+}
+
+// ============================================================================
+// Short SAR Invite Codes — 12-character human-friendly invite strings
+// Format: SAR-XXXXXXXX  (3 + 1 + 8 = 12 chars total, SAR prefix + 8 random)
+// ============================================================================
+
+model InviteCode {
+  id              String   @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  code            String   @unique  // the 12-char SAR code, e.g. "SAR-AB12CD34"
+  // Invite payload (mirrors what the long HMAC token encodes)
+  email           String
+  name            String
+  phone           String?
+  role            String   @default("investigator")
+  // Lifecycle
+  createdById     String
+  createdBy       User     @relation("InviteCodeCreatedBy", fields: [createdById], references: [id])
+  createdAt       DateTime @default(now())
+  expiresAt       DateTime
+  usedAt          DateTime?
+  usedById        String?  // the user who redeemed this code
+  usedBy          User?    @relation("InviteCodeUsedBy", fields: [usedById], references: [id])
+
+  @@index([organizationId])
+  @@index([code])
+  @@index([email])
+  @@index([expiresAt])
 }
