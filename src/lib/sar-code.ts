@@ -56,8 +56,11 @@ export function normalizeSarCode(input: string): string | null {
   if (!input) return null;
   // Strip all non-alphanumeric, uppercase
   const cleaned = input.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-  // Must start with SAR + 8 alphanumeric
-  if (!/^SAR[A-HJ-NP-TV-Z2-9]{8}$/.test(cleaned)) return null;
+  // Must start with SAR + 8 chars from the unambiguous alphabet
+  // (excludes I, L, O, Y to avoid confusion with 1, l, 0, V)
+  const validChar = "[ABCDEFGHJKMNPQRSTUVWXZ23456789]";
+  const re = new RegExp(`^SAR${validChar}{8}$`);
+  if (!re.test(cleaned)) return null;
   // Reformat with dash: SAR-XXXXXXXX
   return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`;
 }
@@ -66,5 +69,7 @@ export function normalizeSarCode(input: string): string | null {
  * Check if a SAR code matches the canonical format (already normalized).
  */
 export function isValidSarCode(code: string): boolean {
-  return /^SAR-[A-HJ-NP-TV-Z2-9]{8}$/.test(code);
+  const validChar = "[ABCDEFGHJKMNPQRSTUVWXZ23456789]";
+  const re = new RegExp(`^SAR-${validChar}{8}$`);
+  return re.test(code);
 }
