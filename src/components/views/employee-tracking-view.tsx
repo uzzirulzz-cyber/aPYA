@@ -24,6 +24,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,16 @@ import {
   ShieldCheck, LogIn, LogOut, Search, X, Layers, Navigation,
   Route, Calendar, TrendingUp, Globe, Target, Flag, Share2,
 } from "lucide-react";
+
+// Leaflet uses `window` — must be loaded client-only to avoid prerender errors
+const NeonMap = dynamic(() => import("@/components/neon-map").then((m) => m.NeonMap), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: "#0d1117" }}>
+      <Activity className="h-6 w-6 animate-spin" style={{ color: "#3b82f6" }} />
+    </div>
+  ),
+});
 
 interface Member {
   id: string;
@@ -961,22 +972,65 @@ export function EmployeeTrackingView() {
           )}
         </aside>
 
-        {/* CENTER: map */}
+        {/* CENTER: real Leaflet map */}
         <div className="flex-1 relative min-w-0">
-          <canvas
-            ref={canvasRef}
-            className={`w-full h-full ${mapMode === "drawGeofence" ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing"}`}
-            style={{ width: "100%", height: "100%", display: "block" }}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onWheel={handleWheel}
-            onClick={handleCanvasClick}
+          <NeonMap
+            markers={filteredMembers
+              .map((m) => {
+                const ping = data?.latestPings[m.id];
+                if (!ping) return null;
+                const isSelected = selectedMemberId === m.id;
+                const isInside = ping.insideGeofenceIds.length > 0;
+                return {
+                  id: m.id,
+                  lat: ping.lat,
+                  lon: ping.lon,
+                  label: m.name ?? m.email,
+                  sublabel: m.email,
+                  color: isSelected ? T.neonAmber : isInside ? T.neonGreen : T.neonBlue,
+                  isSelected,
+                  isPulsing: true,
+                  battery: ping.batteryPercent ?? undefined,
+                };
+              })
+              .filter(Boolean) as any[]}
+            geofences={(data?.geofences ?? []).map((g) => ({
+              id: g.id,
+              lat: g.lat,
+              lon: g.lon,
+              radiusMeters: g.radiusMeters,
+              color: g.color,
+              name: g.name,
+              isActive: g.isActive,
+            }))}
+            routePoints={routePoints.map((p) => ({ lat: p.lat, lon: p.lon }))}
+            focusTarget={
+              selectedMemberId && data?.latestPings[selectedMemberId]
+                ? {
+                    lat: data.latestPings[selectedMemberId].lat,
+                    lon: data.latestPings[selectedMemberId].lon,
+                    zoom: 15,
+                  }
+                : null
+            }
+            onMapClick={(lat, lon) => {
+              if (mapMode === "drawGeofence") {
+                setPendingGeofence({ lat, lon });
+              }
+            }}
+            drawMode={mapMode === "drawGeofence"}
+            onMarkerClick={(id) => setSelectedMemberId(selectedMemberId === id ? null : id)}
+            showSearch
+            onSearchSelect={(r) => {
+              // Could also create a geofence at this location — for now just focus
+              toast.info(`Focused: ${r.shortName}`);
+            }}
+            initialCenter={[34.1718, 73.2389]}
+            initialZoom={13}
           />
 
           {/* Top-left status overlay */}
-          <div className="absolute top-3 left-3 flex items-center gap-2 pointer-events-none">
+          <div className="absolute top-3 left-[300px] flex items-center gap-2 pointer-events-none z-[500]">
             <div
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-md"
               style={{
@@ -999,19 +1053,10 @@ export function EmployeeTrackingView() {
                 {secondsSinceFetch}s · {data?.members.length ?? 0} units
               </span>
             </div>
-            {zoom > 1.05 && (
-              <div
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md"
-                style={{ backgroundColor: "rgba(13, 17, 23, 0.85)", border: `1px solid ${T.borderNeon}`, backdropFilter: "blur(8px)" }}
-              >
-                <ZoomIn className="h-2.5 w-2.5" style={{ color: T.neonBlue }} />
-                <span className="text-[10px] font-mono" style={{ color: T.neonBlue }}>{zoom.toFixed(1)}x</span>
-              </div>
-            )}
           </div>
 
-          {/* Top-right: mode + zoom controls */}
-          <div className="absolute top-3 right-3 flex flex-col items-end gap-2">
+          {/* Top-right: mode controls */}
+          <div className="absolute top-3 right-3 flex flex-col items-end gap-2 z-[500]">
             <div className="flex items-center gap-1">
               {mapMode === "view" ? (
                 <NeonCTAButton color={T.neonBlue} onClick={() => { setMapMode("drawGeofence"); setPendingGeofence(null); }}>
@@ -1023,21 +1068,10 @@ export function EmployeeTrackingView() {
                 </NeonCTAButton>
               )}
             </div>
-            <div className="flex flex-col gap-1">
-              <NeonIconButton color={T.neonBlue} onClick={zoomIn} title="Zoom in">
-                <ZoomIn className="h-3.5 w-3.5" />
-              </NeonIconButton>
-              <NeonIconButton color={T.neonBlue} onClick={zoomOut} title="Zoom out">
-                <ZoomOut className="h-3.5 w-3.5" />
-              </NeonIconButton>
-              <NeonIconButton color={T.neonBlue} onClick={resetView} title="Reset view">
-                <LocateFixed className="h-3.5 w-3.5" />
-              </NeonIconButton>
-            </div>
           </div>
 
           {/* Bottom-left legend */}
-          <div className="absolute bottom-3 left-3 flex flex-col gap-1.5 pointer-events-none">
+          <div className="absolute bottom-3 left-3 flex flex-col gap-1.5 pointer-events-none z-[500]">
             <LegendItem color={T.neonGreen} label="Inside geofence" />
             <LegendItem color={T.neonBlue} label="Outside / roaming" />
             <LegendItem color={T.neonAmber} label="Selected / locked" />
@@ -1046,7 +1080,7 @@ export function EmployeeTrackingView() {
 
           {/* Bottom-right timestamp */}
           <div
-            className="absolute bottom-3 right-3 text-[9px] font-mono px-2 py-1 rounded"
+            className="absolute bottom-3 right-3 text-[9px] font-mono px-2 py-1 rounded z-[500]"
             style={{
               color: T.textMuted,
               backgroundColor: "rgba(13, 17, 23, 0.85)",
@@ -1058,7 +1092,7 @@ export function EmployeeTrackingView() {
           </div>
 
           {loading && (
-            <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: "rgba(13, 17, 23, 0.8)" }}>
+            <div className="absolute inset-0 flex items-center justify-center z-[600]" style={{ backgroundColor: "rgba(13, 17, 23, 0.8)" }}>
               <Activity className="h-6 w-6 animate-spin" style={{ color: T.neonBlue }} />
             </div>
           )}
