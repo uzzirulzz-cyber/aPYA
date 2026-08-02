@@ -47,11 +47,24 @@ const WORLD_REGIONS = [
   { lat: -26.2041, lon: 28.0473, name: "Johannesburg, SA", region: "AF" },
 ];
 
-export function GeoMapView() {
+interface GeoMapViewProps {
+  focusUserId?: string | null;
+  onFocusCleared?: () => void;
+}
+
+export function GeoMapView({ focusUserId, onFocusCleared }: GeoMapViewProps = {}) {
   const [data, setData] = useState<LiveMonitorData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDevice, setSelectedDevice] = useState<GeoDevice | null>(null);
   const [devicePositions, setDevicePositions] = useState<Record<string, { lat: number; lon: number }>>({});
+  // Zoom & pan state (animated toward target each frame)
+  const [zoom, setZoom] = useState(1);
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
+  const targetZoom = useRef(1);
+  const targetPanX = useRef(0);
+  const targetPanY = useRef(0);
+  const focusDeviceId = useRef<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>(0);
   const lastFetchRef = useRef<number>(0);
@@ -97,6 +110,71 @@ export function GeoMapView() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  // When focusUserId changes, find a matching device and lock focus on it.
+  useEffect(() => {
+    if (!focusUserId) {
+      focusDeviceId.current = null;
+      targetZoom.current = 1;
+      targetPanX.current = 0;
+      targetPanY.current = 0;
+      return;
+    }
+    if (!data?.devices?.length) return;
+
+    const matchingDevice = data.devices.find((d) => d.addedBy?.id === focusUserId);
+    if (!matchingDevice) {
+      toast.info("No live field units assigned to this member yet.");
+      onFocusCleared?.();
+      return;
+    }
+    focusDeviceId.current = matchingDevice.id;
+    setSelectedDevice(matchingDevice);
+  }, [focusUserId, data, onFocusCleared]);
+
+  // Recompute target pan whenever positions update or focus changes.
+  useEffect(() => {
+    if (!focusDeviceId.current) {
+      targetZoom.current = 1;
+      targetPanX.current = 0;
+      targetPanY.current = 0;
+      return;
+    }
+    const pos = devicePositions[focusDeviceId.current];
+    const canvas = canvasRef.current;
+    if (!pos || !canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    const dx = ((pos.lon + 180) / 360) * w;
+    const dy = ((90 - pos.lat) / 180) * h;
+    const targetZoomVal = 7;
+    targetZoom.current = targetZoomVal;
+    targetPanX.current = w / 2 - dx * targetZoomVal;
+    targetPanY.current = h / 2 - dy * targetZoomVal;
+  }, [devicePositions, focusUserId]);
+
+  // Animation loop: lerp current zoom/pan toward target.
+  useEffect(() => {
+    const animate = () => {
+      animationRef.current = requestAnimationFrame(animate);
+      setZoom((prev) => {
+        const next = prev + (targetZoom.current - prev) * 0.12;
+        return Math.abs(next - prev) < 0.001 ? prev : next;
+      });
+      setPanX((prev) => {
+        const next = prev + (targetPanX.current - prev) * 0.12;
+        return Math.abs(next - prev) < 0.3 ? prev : next;
+      });
+      setPanY((prev) => {
+        const next = prev + (targetPanY.current - prev) * 0.12;
+        return Math.abs(next - prev) < 0.3 ? prev : next;
+      });
+    };
+    animate();
+    return () => cancelAnimationFrame(animationRef.current);
+  }, []);
+
   useEffect(() => {
     const moveInterval = setInterval(() => {
       setDevicePositions((prev) => {
@@ -130,6 +208,12 @@ export function GeoMapView() {
     const w = rect.width;
     const h = rect.height;
     const time = Date.now() / 1000;
+
+    // ===== World layer (zoomable / pannable) =====
+    ctx.save();
+    ctx.translate(panX, panY);
+    ctx.scale(zoom, zoom);
+    const isZoomed = zoom > 1.5;
 
     // Shutterstock theme: Blue gradient background
     const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
@@ -347,24 +431,85 @@ export function GeoMapView() {
       ctx.fill();
     });
 
-    // Timestamp
-    ctx.fillStyle = "rgba(148, 163, 184, 0.3)";
-    ctx.font = "9px monospace";
-    ctx.textAlign = "right";
-    ctx.fillText(new Date().toISOString().slice(0, 19).replace("T", " "), w - 12, h - 12);
+    // Precision view overlay (only when zoomed in on a target)
+    if (isZoomed && focusDeviceId.current) {
+      const pos = devicePositions[focusDeviceId.current];
+      if (pos) {
+        const fx = ((pos.lon + 180) / 360) * w;
+        const fy = ((90 - pos.lat) / 180) * h;
 
-  }, [data, devicePositions, selectedDevice]);
+        // Accuracy circles (GPS-style)
+        [60, 120, 200].forEach((r, i) => {
+          ctx.strokeStyle = `rgba(245, 158, 11, ${0.25 - i * 0.06})`;
+          ctx.lineWidth = 1.2 / zoom;
+          ctx.setLineDash([6 / zoom, 6 / zoom]);
+          ctx.beginPath();
+          ctx.arc(fx, fy, r, 0, Math.PI * 2);
+          ctx.stroke();
+        });
+        ctx.setLineDash([]);
 
-  useEffect(() => {
-    const animate = () => {
-      animationRef.current = requestAnimationFrame(animate);
-      setSelectedDevice((s) => s);
-    };
-    animate();
-    return () => cancelAnimationFrame(animationRef.current);
-  }, []);
+        // Crosshair on target
+        ctx.strokeStyle = "rgba(245, 158, 11, 0.8)";
+        ctx.lineWidth = 1.5 / zoom;
+        const ch = 40;
+        ctx.beginPath();
+        ctx.moveTo(fx - ch, fy); ctx.lineTo(fx - 12, fy);
+        ctx.moveTo(fx + 12, fy); ctx.lineTo(fx + ch, fy);
+        ctx.moveTo(fx, fy - ch); ctx.lineTo(fx, fy - 12);
+        ctx.moveTo(fx, fy + 12); ctx.lineTo(fx, fy + ch);
+        ctx.stroke();
+
+        // Precision coordinate label
+        ctx.fillStyle = "rgba(245, 158, 11, 0.95)";
+        ctx.font = `bold ${14 / zoom}px monospace`;
+        ctx.textAlign = "left";
+        ctx.fillText(`${pos.lat.toFixed(6)}°N`, fx + 45, fy - 8);
+        ctx.fillText(`${Math.abs(pos.lon).toFixed(6)}°${pos.lon >= 0 ? "E" : "W"}`, fx + 45, fy + 8);
+      }
+    }
+    ctx.restore();
+
+    // ===== HUD layer (fixed, not zoomed) =====
+    if (isZoomed && selectedDevice) {
+      const pos = devicePositions[selectedDevice.id];
+      // Precision view banner
+      ctx.fillStyle = "rgba(245, 158, 11, 0.15)";
+      ctx.fillRect(w / 2 - 110, 12, 220, 32);
+      ctx.strokeStyle = "rgba(245, 158, 11, 0.6)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(w / 2 - 110, 12, 220, 32);
+      ctx.fillStyle = "#f59e0b";
+      ctx.font = "bold 11px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("PRECISION GPS VIEW", w / 2, 28);
+      ctx.fillStyle = "rgba(241, 245, 249, 0.7)";
+      ctx.font = "9px monospace";
+      ctx.fillText(`LOCK: ${selectedDevice.name.slice(0, 18)}`, w / 2, 40);
+      if (pos) {
+        ctx.fillStyle = "rgba(148, 163, 184, 0.5)";
+        ctx.font = "9px monospace";
+        ctx.textAlign = "right";
+        ctx.fillText(`${pos.lat.toFixed(6)}°N  ${Math.abs(pos.lon).toFixed(6)}°${pos.lon >= 0 ? "E" : "W"}`, w - 12, h - 12);
+      }
+    } else {
+      ctx.fillStyle = "rgba(148, 163, 184, 0.3)";
+      ctx.font = "9px monospace";
+      ctx.textAlign = "right";
+      ctx.fillText(new Date().toISOString().slice(0, 19).replace("T", " "), w - 12, h - 12);
+    }
+
+  }, [data, devicePositions, selectedDevice, zoom, panX, panY]);
 
   const devices = data?.devices || [];
+
+  const exitFocus = () => {
+    focusDeviceId.current = null;
+    targetZoom.current = 1;
+    targetPanX.current = 0;
+    targetPanY.current = 0;
+    onFocusCleared?.();
+  };
 
   return (
     <div className="space-y-4">
@@ -434,6 +579,16 @@ export function GeoMapView() {
                   <span className="text-[9px] text-[#94a3b8]">Selected</span>
                 </div>
               </div>
+              {/* Exit focus button */}
+              {zoom > 1.5 && (
+                <button
+                  onClick={exitFocus}
+                  className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#f59e0b]/10 border border-[#f59e0b]/40 text-[#f59e0b] text-[11px] font-mono font-medium hover:bg-[#f59e0b]/20 transition-colors cursor-pointer"
+                >
+                  <Crosshair className="h-3 w-3" />
+                  EXIT PRECISION VIEW
+                </button>
+              )}
             </div>
           </CardContent>
         </Card>

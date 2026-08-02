@@ -1,7 +1,7 @@
 "use client";
 
 import { GeoMapView } from "./geo-map-view";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useSession, useTeam, useUpdateTeamMember, useOrganization } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { cn, formatDateTime } from "@/lib/utils";
 import {
   ShieldCheck, Users, Building2, KeyRound, Lock, Plus, Pencil,
-  Trash2, Copy, Check, Phone, Mail, User, Loader2, ExternalLink
+  Trash2, Copy, Check, Phone, Mail, User, Loader2, ExternalLink, MapPin, Crosshair
 } from "lucide-react";
 
 const roleColors: Record<string, string> = {
@@ -36,6 +36,9 @@ export function AdminView() {
   const [addOpen, setAddOpen] = useState(false);
   const [inviteResult, setInviteResult] = useState<any>(null);
   const [copied, setCopied] = useState(false);
+  // Member → Global Operations Monitor linkage
+  const [focusUserId, setFocusUserId] = useState<string | null>(null);
+  const mapSectionRef = useRef<HTMLDivElement>(null);
 
   // Add member form state
   const [newName, setNewName] = useState("");
@@ -118,6 +121,14 @@ export function AdminView() {
 
   const maxUsers = org?.licenseType === "enterprise" ? 50 : org?.licenseType === "professional" ? 15 : 5;
 
+  const handleLocateMember = (memberId: string) => {
+    setFocusUserId(memberId);
+    // Scroll to the Global Operations Monitor so the user sees the zoom-in
+    if (mapSectionRef.current) {
+      mapSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6 space-y-4 max-w-[1200px] mx-auto">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -132,7 +143,12 @@ export function AdminView() {
         </Button>
       </div>
 
-      <GeoMapView />
+      <div ref={mapSectionRef} className="scroll-mt-4">
+        <GeoMapView
+          focusUserId={focusUserId}
+          onFocusCleared={() => setFocusUserId(null)}
+        />
+      </div>
 
       {/* Organization card */}{/* Organization card */}
       <Card className="border-[#1e293b]">
@@ -170,7 +186,13 @@ export function AdminView() {
                 <div className="p-6 text-center text-sm text-[#64748b]">No team members yet.</div>
               ) : (
                 team.map((member: any) => (
-                  <div key={member.id} className="flex items-center gap-3 px-4 py-3 hover:bg-[#1e293b]/40 transition-colors">
+                  <div
+                    key={member.id}
+                    className={cn(
+                      "flex items-center gap-3 px-4 py-3 hover:bg-[#1e293b]/40 transition-colors",
+                      focusUserId === member.id && "bg-[#f59e0b]/5 border-l-2 border-l-[#f59e0b]"
+                    )}
+                  >
                     <Avatar className="h-9 w-9">
                       <AvatarFallback className="text-xs bg-primary/10 text-primary">
                         {(member.name || member.email || "?").slice(0, 2).toUpperCase()}
@@ -189,6 +211,28 @@ export function AdminView() {
                       {member.role}
                     </Badge>
                     <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "h-7 w-7 cursor-pointer",
+                          focusUserId === member.id
+                            ? "text-[#f59e0b] bg-[#f59e0b]/10"
+                            : "text-[#14b8a6] hover:bg-[#14b8a6]/10"
+                        )}
+                        title={focusUserId === member.id ? "Tracking on map" : "Locate on Global Operations Monitor"}
+                        onClick={() => {
+                          if (focusUserId === member.id) {
+                            setFocusUserId(null);
+                          } else {
+                            handleLocateMember(member.id);
+                          }
+                        }}
+                      >
+                        {focusUserId === member.id
+                          ? <Crosshair className="h-3 w-3" />
+                          : <MapPin className="h-3 w-3" />}
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
