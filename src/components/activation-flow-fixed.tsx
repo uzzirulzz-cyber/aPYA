@@ -56,9 +56,9 @@ export function ActivationFlow() {
     const [inviteError, setInviteError] = useState<string | null>(null);
     const [licenseType, setLicenseType] = useState<"standard" | "professional" | "enterprise">("professional");
     const [orgName, setOrgName] = useState("");
-    const [email, setEmail] = useState("admin");
-    const [name, setName] = useState("Bixby");
-    const [password, setPassword] = useState("playbeat123");
+    const [email, setEmail] = useState("");
+    const [name, setName] = useState("");
+    const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
 
     const router = useRouter();

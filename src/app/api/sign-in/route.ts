@@ -1,43 +1,44 @@
 import { NextResponse } from "next/server";
 import { db, withRetry } from "@/lib/db";
-import { setSessionCookie, verifyPassword, writeAuditLog } from "@/lib/auth";
+import { setSessionCookie, verifyPassword, hashPassword, writeAuditLog } from "@/lib/auth";
 
-const FALLBACK_ADMIN_HASH = "$2b$12$J5MlselwTPATOOxD43bfS.ntQEt4YYnIbC/.XeA8agNyQm7LbS2j.";
-const FALLBACK_ADMIN_EMAIL = "admin";
-const FALLBACK_ADMIN_NAME = "Admin";
-const FALLBACK_ADMIN_TOKEN = `email:${FALLBACK_ADMIN_EMAIL}`;
+/**
+ * Advanced secure sign-in — NO hardcoded credentials.
+ *
+ * Admin bootstrap is done via environment variables:
+ *   ADMIN_EMAIL     — the admin's login email (e.g. "admin@magxtv.click")
+ *   ADMIN_PASSWORD  — the admin's plaintext password (hashed on first run)
+ *
+ * On the first sign-in attempt with these env vars set, if no admin user
+ * exists yet, the route creates one using the env-provided email + a bcrypt
+ * hash of the env-provided password. The plaintext password is NEVER stored
+ * — only the bcrypt hash. After creation, subsequent sign-ins verify
+ * against the stored hash normally.
+ *
+ * If the env vars are NOT set, no admin auto-creation happens — the user
+ * must sign in with credentials that already exist in the database.
+ */
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+// Read admin config from env (evaluated at module load, not hardcoded)
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+const ADMIN_NAME = process.env.ADMIN_NAME || "Administrator";
+const ORG_NAME = process.env.ORG_NAME || "WildTrack";
+const ORG_LICENSE_KEY = process.env.ORG_LICENSE_KEY || "FORENSIQ-2026-WILDTRACK-ADMIN";
+const ORG_LICENSE_TYPE = (process.env.ORG_LICENSE_TYPE || "professional") as "standard" | "professional" | "enterprise";
+const ORG_MAX_USERS = parseInt(process.env.ORG_MAX_USERS || "50");
+
 function getLoginCandidates(input: string) {
   const trimmed = input.trim().toLowerCase();
   if (!trimmed) return [] as string[];
-
-  const isAdminAlias = ["admin", "bixby", "wildtrack", "admin@wildtrack.local", "bixby@wildtrack.local", "bixby@g.com"].includes(trimmed)
-    || trimmed.startsWith("bixby@");
-  const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
-
   const candidates = new Set<string>();
-  if (isEmail) {
-    candidates.add(trimmed);
-  } else {
-    candidates.add(trimmed);
-    if (isAdminAlias) {
-      candidates.add("bixby@wildtrack.local");
-      candidates.add("bixby");
-    }
-  }
-
-  if (isAdminAlias) {
-    candidates.add("bixby@wildtrack.local");
-    candidates.add("bixby");
-  }
-
+  candidates.add(trimmed);
   return Array.from(candidates);
 }
 
-// Sign-in: verifies email + password against the stored bcrypt hash.
 export async function POST(req: Request) {
   try {
     const { email, password } = (await req.json()) as {
@@ -58,9 +59,7 @@ export async function POST(req: Request) {
     try {
       user = await withRetry(() =>
         db.user.findFirst({
-          where: {
-            email: { in: loginCandidates },
-          },
+          where: { email: { in: loginCandidates } },
           include: { organization: true },
         })
       );
@@ -68,53 +67,62 @@ export async function POST(req: Request) {
       console.error("[sign-in] DB lookup failed", dbError);
     }
 
-    const adminAliases = ["admin", "bixby", "wildtrack", "admin@wildtrack.local", "bixby@wildtrack.local", "bixby@g.com"];
-    const isDefaultAdminAttempt = password === "playbeat123" && loginCandidates.some((candidate) => adminAliases.includes(candidate) || candidate.startsWith("bixby@"));
-    if (isDefaultAdminAttempt && (!user || user.role !== "admin")) {
+    // ── Admin bootstrap via env vars ──────────────────────────────────
+    // If ADMIN_EMAIL + ADMIN_PASSWORD env vars are set AND the submitted
+    // email matches ADMIN_EMAIL AND no admin user exists yet, create one.
+    // This runs ONLY when env vars are configured — no hardcoded creds.
+    if (
+      ADMIN_EMAIL &&
+      ADMIN_PASSWORD &&
+      loginCandidates.includes(ADMIN_EMAIL.toLowerCase()) &&
+      (!user || user.role !== "admin")
+    ) {
       try {
+        const passwordHash = await hashPassword(ADMIN_PASSWORD);
         user = await withRetry(() =>
           db.user.upsert({
-            where: { email: FALLBACK_ADMIN_EMAIL },
+            where: { email: ADMIN_EMAIL.toLowerCase() },
             create: {
-              email: FALLBACK_ADMIN_EMAIL,
-              name: FALLBACK_ADMIN_NAME,
-              passwordHash: FALLBACK_ADMIN_HASH,
+              email: ADMIN_EMAIL.toLowerCase(),
+              name: ADMIN_NAME,
+              passwordHash,
               role: "admin",
               mfaEnabled: false,
               lastActive: new Date(),
-              tokenIdentifier: FALLBACK_ADMIN_TOKEN,
+              tokenIdentifier: `email:${ADMIN_EMAIL.toLowerCase()}`,
             },
             update: {
               role: "admin",
-              passwordHash: FALLBACK_ADMIN_HASH,
+              passwordHash,
               lastActive: new Date(),
-              tokenIdentifier: FALLBACK_ADMIN_TOKEN,
+              tokenIdentifier: `email:${ADMIN_EMAIL.toLowerCase()}`,
             },
             include: { organization: true },
           })
         );
       } catch (dbError) {
-        console.error("[sign-in] fallback admin upsert failed", dbError);
+        console.error("[sign-in] admin bootstrap failed", dbError);
       }
     }
 
-    if (isDefaultAdminAttempt && user && !user.organizationId) {
+    // ── Organization bootstrap (only if admin user has no org) ────────
+    if (user && user.role === "admin" && !user.organizationId && ORG_NAME) {
       try {
         const organization = await withRetry(() =>
           db.organization.upsert({
-            where: { licenseKey: "FORENSIQ-2026-MAGTXTV-ADMIN" },
+            where: { licenseKey: ORG_LICENSE_KEY },
             create: {
-              name: "magxtv.click",
-              licenseKey: "FORENSIQ-2026-MAGTXTV-ADMIN",
-              licenseType: "professional",
+              name: ORG_NAME,
+              licenseKey: ORG_LICENSE_KEY,
+              licenseType: ORG_LICENSE_TYPE,
               activatedById: user.id,
-              maxUsers: 50,
+              maxUsers: ORG_MAX_USERS,
             },
             update: {
-              name: "magxtv.click",
-              licenseType: "professional",
+              name: ORG_NAME,
+              licenseType: ORG_LICENSE_TYPE,
               activatedById: user.id,
-              maxUsers: 50,
+              maxUsers: ORG_MAX_USERS,
             },
           })
         );
@@ -127,7 +135,7 @@ export async function POST(req: Request) {
           })
         );
       } catch (dbError) {
-        console.error("[sign-in] fallback organization creation failed", dbError);
+        console.error("[sign-in] organization bootstrap failed", dbError);
         return NextResponse.json(
           { error: "Database error: Organization creation failed." },
           { status: 500 }
@@ -135,7 +143,10 @@ export async function POST(req: Request) {
       }
     }
 
-    // Always run a hash comparison to keep timing constant.
+    // ── Password verification (timing-safe) ───────────────────────────
+    // Always run a hash comparison to keep timing constant — even if no
+    // user was found, we compare against a dummy hash to prevent timing
+    // attacks that could enumerate valid emails.
     const dummyHash =
       "$2a$12$0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
     const ok = await verifyPassword(password, user?.passwordHash ?? dummyHash);

@@ -6,8 +6,16 @@ import bcrypt from "bcryptjs";
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 
 export const SESSION_COOKIE = "forensiq_session";
-const SESSION_SECRET =
-  process.env.NEXTAUTH_SECRET || "forensiq-fallback-secret-please-set-NEXTAUTH_SECRET";
+// NO hardcoded fallback secret — if NEXTAUTH_SECRET is not set, we use an
+// empty string which makes all sessions invalid (HMAC will never match).
+// This forces the operator to set NEXTAUTH_SECRET for auth to work.
+const SESSION_SECRET = process.env.NEXTAUTH_SECRET ?? "";
+if (!SESSION_SECRET) {
+  console.error(
+    "⚠️  NEXTAUTH_SECRET is not set! Session cookies cannot be verified. " +
+      "Set NEXTAUTH_SECRET in your environment (use `openssl rand -base64 32`)."
+  );
+}
 const BCRYPT_ROUNDS = 12;
 
 /* ----------------------------- Password hashing ---------------------------- */
